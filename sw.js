@@ -1,5 +1,5 @@
 // Offline support for Demon Play Predictor
-const V = 'dpp-v2';
+const V = 'dpp-v3';
 const CORE = ['./', './index.html', './xlsx.full.min.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
@@ -16,6 +16,8 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // Only handle this site's files and Google Fonts; live sync traffic goes straight to the network.
+  if (url.origin !== self.location.origin && !/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) return;
   // The page: try the network briefly for updates, fall back to the saved copy.
   if (req.mode === 'navigate') {
     e.respondWith((async () => {

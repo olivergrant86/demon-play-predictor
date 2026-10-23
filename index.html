@@ -142,6 +142,17 @@ td.m{font-family:var(--mono);font-size:12px}
   .stat.top{grid-column:1/-1}
   .hashline{flex-wrap:wrap}
 }
+.pill-live{border:0;cursor:pointer;background:var(--red);color:#fff}
+.pill-live.warn{background:#d99a00;color:#111}
+.syncp .sync-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.syncp .note{margin:0}
+.sync-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sync-act input{font:800 20px var(--display);letter-spacing:.2em;text-transform:uppercase;width:110px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.sync-on{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.sync-info{flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px}
+.code{font:800 52px/1 var(--display);letter-spacing:.14em;color:var(--red)}
+.warn-txt{color:#b07a00;font-weight:600}
+.s-live{display:block;font:800 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:#ff2a45;margin-bottom:2px}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -206,11 +217,34 @@ td.m{font-family:var(--mono);font-size:12px}
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <button class="btn" id="resetData" hidden>Use sample data</button>
       <button class="btn" id="clearSit">Clear situation</button>
+      <button class="btn" id="syncBtn" hidden>Staff sync</button>
       <button class="btn btn-red" id="sideBtn">Sideline mode</button>
+      <button class="pill pill-live" id="syncPill" hidden></button>
       <span class="pill" id="net" hidden>Offline · still working</span>
     </div>
   </header>
 
+  <section class="panel syncp" id="syncPanel" hidden aria-label="Staff sync">
+    <div class="sync-head">
+      <div><p class="lbl">Staff sync</p><p class="note">Every device in the same room shows the same situation and read. Any device can change it.</p></div>
+      <button class="btn" id="syncClose">Close</button>
+    </div>
+    <div>
+      <p class="lbl">This device is the</p>
+      <div class="chips" id="devChips"></div>
+    </div>
+    <div id="syncOff" class="sync-act">
+      <button class="btn btn-red" id="startRoom">Start a room</button>
+      <span class="note">or join one:</span>
+      <input id="joinCode" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
+      <button class="btn" id="joinRoom">Join</button>
+    </div>
+    <div id="syncOn" class="sync-on" hidden>
+      <div><span class="lbl">Room code</span><div class="code" id="roomCode"></div></div>
+      <div class="sync-info"><p class="note" id="syncStatus"></p><p class="note">Other coaches: open the app, tap Staff sync and join this code.</p></div>
+      <button class="btn" id="leaveRoom">Leave room</button>
+    </div>
+  </section>
   <div class="readbar" id="readbar" aria-live="polite"></div>
   <div class="grid">
     <section class="panel" aria-label="Situation">
@@ -271,7 +305,7 @@ td.m{font-family:var(--mono);font-size:12px}
   <button class="btn" id="tipX" aria-label="Dismiss">✕</button>
 </div>
 <div class="side" id="side" hidden role="dialog" aria-label="Sideline mode">
-  <div class="s-top"><span class="s-sit" id="sSit"></span><button class="s-btn" id="sExit">Exit</button></div>
+  <div class="s-top"><div><span class="s-live" id="sLive" hidden></span><span class="s-sit" id="sSit"></span></div><button class="s-btn" id="sExit">Exit</button></div>
   <div class="s-main">
     <div class="s-lean"><b id="sPct"></b><span id="sWhat"></span></div>
     <div class="s-split"><div class="r" id="sRun"></div><div class="p" id="sPass"></div></div>
@@ -437,7 +471,7 @@ function renderRead(){
     </div>`;
 }
 
-function update(){ renderControls(); drawSpot(); renderRead(); }
+function update(){ renderControls(); drawSpot(); renderRead(); if(typeof publish==='function') publish(); }
 
 /* ---------- sideline mode ---------- */
 let wake=null;
@@ -463,8 +497,11 @@ function renderSide(o){
   const r=Math.round(run*100), p=100-r;
   $('sRun').style.width=r+'%'; $('sRun').textContent=r>=12?'RUN '+r:'';
   $('sPass').style.width=p+'%'; $('sPass').textContent=p>=12?'PASS '+p:'';
-  $('sTop').textContent=P.plays[0]?P.plays[0].p:'—';
-  $('sNext').textContent=P.plays.slice(1,3).map(x=>x.p+' '+Math.round(x.v*100)+'%').join('  ·  ');
+  const other=lean==='Run'?'Pass':'Run';
+  const mine=P.plays.filter(x=>x.t===lean), theirs=P.plays.filter(x=>x.t===other);
+  document.querySelector('.s-lbl').textContent='Top '+lean.toLowerCase()+' call';
+  $('sTop').textContent=mine[0]?mine[0].p:'—';
+  $('sNext').textContent=[mine[1]&&(mine[1].p+' '+Math.round(mine[1].v*100)+'%'),theirs[0]&&('Top '+other.toLowerCase()+': '+theirs[0].p)].filter(Boolean).join('  ·  ');
   $('sConf').innerHTML=`<span class="dot" style="background:${cc};width:14px;height:14px"></span>${cl} confidence · ~${Math.round(P.eff)} similar plays`;
   $('sDowns').innerHTML=[1,2,3,4].map(d=>`<button class="s-btn" data-dn="${d}" aria-pressed="${S.dn===d}">${ord(d)}</button>`).join('');
   $('sDowns').querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>{S.dn=+b.dataset.dn;update();});
@@ -474,6 +511,90 @@ function renderSide(o){
   $('sForm').innerHTML='<option value="">Any formation</option>'+
     '<optgroup label="Formations">'+fc.map(([f])=>`<option value="${f}" ${S.form===f?'selected':''}>${f}</option>`).join('')+'</optgroup>'+
     '<optgroup label="Families">'+fam.map(([f])=>`<option value="fam:${f}" ${!S.form&&S.fam===f?'selected':''}>${f} family</option>`).join('')+'</optgroup>';
+}
+
+/* ---------- staff sync (Firebase Realtime Database over REST) ---------- */
+const DB="https://demon-play-predictor-default-rtdb.firebaseio.com";
+const ME=Math.random().toString(36).slice(2,10);
+const DEVS=['Press box','Sideline','Field'];
+let room=null, es=null, ready=false, applying=false, pubT=null, last=null, sendErr=false, warnedTeam=null;
+let dev='Press box';
+try{ dev=localStorage.getItem('dpp-dev')||dev; room=localStorage.getItem('dpp-room')||null; }catch(_){}
+const roomUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'.json';
+function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,team:DATA.team||'',by:dev,id:ME,t:Date.now()}; }
+function send(){
+  if(!room) return;
+  const body=snap();
+  fetch(roomUrl(),{method:'PUT',body:JSON.stringify(body)})
+    .then(r=>{ if(!r.ok) throw new Error(r.status); sendErr=false; last=body; syncUI(); })
+    .catch(()=>{ sendErr=true; syncUI(); });
+}
+function publish(){ if(!room||!ready||applying) return; clearTimeout(pubT); pubT=setTimeout(send,250); }
+function apply(d){
+  applying=true;
+  Object.assign(S,{dn:d.dn??S.dn,dist:d.dist??S.dist,ytg:d.ytg??S.ytg,hash:d.hash||S.hash,form:d.form||null,fam:d.fam||null,pers:d.pers||null});
+  update(); applying=false;
+}
+function handle(d){
+  if(!ready){ ready=true; if(!d){ send(); return; } }
+  if(!d) return;
+  last=d;
+  if(d.id!==ME) apply(d);
+  if(d.team && d.team!==DATA.team && warnedTeam!==d.team){ warnedTeam=d.team; toast(`${d.by} is scouting ${d.team}. Load the same Hudl file here so the reads match.`); }
+  syncUI();
+}
+function connect(){
+  if(es) es.close();
+  ready=false; last=null; warnedTeam=null;
+  if(!room||!DB) return syncUI();
+  es=new EventSource(roomUrl());
+  const refetch=()=>fetch(roomUrl()).then(r=>r.json()).then(handle).catch(()=>{});
+  es.addEventListener('put',e=>{ try{ const m=JSON.parse(e.data); m.path==='/'?handle(m.data):refetch(); }catch(_){} });
+  es.addEventListener('patch',refetch);
+  es.onopen=syncUI; es.onerror=syncUI;
+  syncUI();
+}
+function setRoom(code){
+  room=code; try{ code?localStorage.setItem('dpp-room',code):localStorage.removeItem('dpp-room'); }catch(_){}
+  if(!code && es){ es.close(); es=null; }
+  connect();
+}
+function ago(t){ const s=Math.max(0,Math.round((Date.now()-t)/1000)); return s<5?'just now':s<60?s+'s ago':Math.round(s/60)+' min ago'; }
+function syncUI(){
+  if(!DB) return;
+  const live=room && es && es.readyState===1 && navigator.onLine!==false;
+  const mismatch=last && last.team && last.team!==DATA.team;
+  const pill=$('syncPill');
+  pill.hidden=!room;
+  if(room){ pill.textContent=live&&!sendErr?(mismatch?'Room '+room+' · different team':'Live · '+room):'Sync paused · '+room; pill.classList.toggle('warn',!live||sendErr||!!mismatch); }
+  $('syncOff').hidden=!!room; $('syncOn').hidden=!room;
+  $('roomCode').textContent=room||'';
+  let msg='';
+  if(!room) msg='';
+  else if(!live) msg='<span class="warn-txt">No connection right now. The read still works here, and it will sync again when signal comes back.</span>';
+  else if(sendErr) msg='<span class="warn-txt">The last change did not send. It will go out with the next one.</span>';
+  else if(!last) msg='Connected. Waiting for the first update.';
+  else msg=(last.id===ME?'You':last.by)+' updated '+ago(last.t)+'.';
+  if(mismatch) msg+=` <span class="warn-txt">${last.by} is scouting ${last.team}; this device has ${DATA.team}.</span>`;
+  $('syncStatus').innerHTML=msg;
+  const sl=$('sLive'); sl.hidden=!room;
+  if(room) sl.textContent=live?('Live · room '+room+(last&&last.id!==ME?' · from '+last.by:'')):'Sync paused';
+  chipRow($('devChips'),DEVS.map(d=>({v:d,t:d})),v=>dev===v,v=>{dev=v;try{localStorage.setItem('dpp-dev',v);}catch(_){}});
+}
+if(DB){
+  $('syncBtn').hidden=false;
+  const toggle=on=>{ $('syncPanel').hidden=!on; if(on){ syncUI(); $('syncPanel').scrollIntoView({block:'nearest'}); } };
+  $('syncBtn').onclick=()=>toggle($('syncPanel').hidden);
+  $('syncPill').onclick=()=>toggle(true);
+  $('syncClose').onclick=()=>toggle(false);
+  $('startRoom').onclick=()=>{ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; setRoom(c); toast('Room '+c+' started. Share the code with your staff.'); };
+  $('joinRoom').onclick=()=>{ const c=$('joinCode').value.trim().toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(c)) return toast('Enter the 4-character room code.'); $('joinCode').value=''; setRoom(c); toast('Joined room '+c+'.'); };
+  $('joinCode').addEventListener('keydown',e=>{ if(e.key==='Enter') $('joinRoom').click(); });
+  $('leaveRoom').onclick=()=>{ setRoom(null); toast('Left the room. This device works on its own now.'); };
+  addEventListener('online',()=>{ if(room && (!es||es.readyState===2)) connect(); else syncUI(); });
+  addEventListener('offline',syncUI);
+  setInterval(()=>{ if(room) syncUI(); },5000);
+  connect();
 }
 
 /* ---------- offline + install ---------- */
