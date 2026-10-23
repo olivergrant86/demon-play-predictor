@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Demon Play Predictor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: press-box console — field on top as the input surface, situation controls below it, scouting read on the right (stacks on phones). */
+:root{
+  --bg:#f3f1f1; --panel:#ffffff; --ink:#151112; --muted:#6b6164; --line:#ddd6d7;
+  --red:#c8102e; --red-ink:#ffffff; --redsoft:#fbe7ea;
+  --run:#c8102e; --pass:#1f1a1b;
+  --turf:#2f6b3e; --turf2:#2a6038; --chalk:rgba(255,255,255,.85);
+  --display:"Saira Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#110e0f; --panel:#1c1718; --ink:#f4eeef; --muted:#a8999c; --line:#352c2e;
+  --red:#e0243f; --red-ink:#ffffff; --redsoft:#3a1b20; --run:#e0243f; --pass:#f4eeef;
+  --turf:#24512f; --turf2:#204a2b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#110e0f; --panel:#1c1718; --ink:#f4eeef; --muted:#a8999c; --line:#352c2e;
+  --red:#e0243f; --red-ink:#ffffff; --redsoft:#3a1b20; --run:#e0243f; --pass:#f4eeef;
+  --turf:#24512f; --turf2:#204a2b; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 32px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:.02em;margin:0;text-transform:uppercase;line-height:1}
+.brand h1 span{color:var(--red)}
+.vs{font-family:var(--display);font-size:17px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.vs b{color:var(--ink)}
+.datactl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font:600 13px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:8px 12px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em}
+.btn:hover{border-color:var(--ink)}
+.btn:focus-visible,.chip:focus-visible,.step:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.lbl{font:700 12px var(--display);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 6px}
+.field-wrap{border-radius:8px;overflow:hidden;cursor:crosshair;touch-action:manipulation}
+.field-wrap svg{display:block;width:100%;height:auto}
+.spotline{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.spot{font-family:var(--display);font-weight:800;font-size:26px;text-transform:uppercase;line-height:1}
+.spot small{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
+.nudge{display:flex;gap:6px}
+.step{font:700 15px var(--display);min-width:44px;height:38px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;cursor:pointer}
+.step:hover{border-color:var(--ink)}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:560px){.row{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 14px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:8px 11px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline;min-height:38px}
+.chip .n{font:500 11px var(--mono);color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:var(--red-ink)}
+.chip[aria-pressed="true"] .n{color:var(--red-ink);opacity:.8}
+.downs .chip{font:800 22px var(--display);min-width:52px;justify-content:center}
+.dist{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dist output{font:800 30px var(--display);min-width:64px;text-align:center}
+select{font:500 14px var(--body);padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:38px;max-width:100%}
+/* read panel */
+.callout{display:flex;flex-direction:column;gap:6px}
+.sit{font:700 14px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.big .pct{font:800 64px/0.9 var(--display)}
+.big .what{font:800 28px var(--display);text-transform:uppercase}
+.split{display:flex;height:30px;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.split div{display:flex;align-items:center;padding:0 10px;font:700 14px var(--display);letter-spacing:.06em;white-space:nowrap;overflow:hidden;transition:width .3s}
+.split .r{background:var(--run);color:#fff}
+.split .p{background:var(--pass);color:var(--bg);justify-content:flex-end}
+.conf{display:inline-flex;gap:6px;align-items:center;font:600 13px var(--body)}
+.dot{width:10px;height:10px;border-radius:50%}
+.plays{display:flex;flex-direction:column;gap:7px}
+.pl{display:grid;grid-template-columns:minmax(0,1fr) 46px;gap:8px;align-items:center}
+.pl .nm{display:flex;gap:7px;align-items:center;min-width:0;font-weight:600}
+.pl .nm span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font:700 10px var(--mono);padding:2px 5px;border-radius:3px;flex:none}
+.tag.Run{background:var(--run);color:#fff}
+.tag.Pass{background:var(--pass);color:var(--bg)}
+.bar{grid-column:1/-1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:-3px}
+.bar i{display:block;height:100%;background:var(--red)}
+.pl .v{font:500 13px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font:800 22px var(--display)}
+.stat span{font-size:12px;color:var(--muted)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th{font:700 11px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.m{font-family:var(--mono);font-size:12px}
+.note{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0}
+.empty{padding:20px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px}
+@media (prefers-reduced-motion:reduce){.split div{transition:none}}
+</style>
+
+</head><body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Demon <span>Play</span> Predictor</h1>
+      <div class="vs">Scouting <b id="teamName">—</b> · <span id="dataInfo"></span></div>
+    </div>
+    <div class="datactl">
+      <label class="btn" for="file">Load Hudl export</label>
+      <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
+      <button class="btn" id="resetData" hidden>Use sample data</button>
+      <button class="btn" id="clearSit">Clear situation</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-label="Situation">
+      <div>
+        <p class="lbl">Ball spot &amp; hash — tap the field</p>
+        <div class="field-wrap" id="fieldWrap"><svg id="field" viewBox="0 0 1200 533" role="img" aria-label="Football field. Tap to place the ball."></svg></div>
+      </div>
+      <div class="spotline">
+        <div class="spot" id="spotTxt">Own 25<small>Left hash</small></div>
+        <div class="nudge">
+          <button class="step" data-ny="-5" aria-label="Back 5 yards">-5</button>
+          <button class="step" data-ny="-1" aria-label="Back 1 yard">-1</button>
+          <button class="step" data-ny="1" aria-label="Forward 1 yard">+1</button>
+          <button class="step" data-ny="5" aria-label="Forward 5 yards">+5</button>
+        </div>
+      </div>
+      <div class="chips" id="hashChips"></div>
+
+      <div class="row">
+        <div>
+          <p class="lbl">Down</p>
+          <div class="chips downs" id="downChips"></div>
+        </div>
+        <div>
+          <p class="lbl">Distance</p>
+          <div class="dist">
+            <button class="step" id="dMinus" aria-label="Less distance">−</button>
+            <output id="distOut">10</output>
+            <button class="step" id="dPlus" aria-label="More distance">+</button>
+            <div class="chips" id="distChips"></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="lbl">Formation</p>
+        <div class="chips" id="formChips"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="formSel" aria-label="All formations"></select>
+          <span class="note">Not sure of the exact call? Pick the family instead:</span>
+        </div>
+        <div class="chips" id="famChips" style="margin-top:8px"></div>
+      </div>
+
+      <div>
+        <p class="lbl">Personnel (optional)</p>
+        <div class="chips" id="persChips"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="Prediction" id="read"></section>
+  </div>
+  <p class="note">How it works: every play in the scouting data is scored for how closely it matches the current down, distance, field position, hash, formation and personnel. Closer matches count more. The read shows what this offense called in the most similar spots. It is a tendency, not a guarantee.</p>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+const SAMPLE = {"team":"Midwest City","rows":[{"dn":1,"dist":10,"yl":-20,"hash":"M","form":"DOUBLES GP","fam":"2X2","pers":"10","type":"Run","play":"OZ","dir":"L","gain":6,"res":"Rush","opp":"Guthrie","qtr":1,"str":"BAL","bf":"PISTOL","mot":null},{"dn":2,"dist":4,"yl":-26,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST MESH DIG","dir":"L","gain":-6,"res":"Sack","opp":"Guthrie","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":10,"yl":-20,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"GO SLANT GO","dir":"R","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":1,"str":"R","bf":"GUN","mot":null},{"dn":1,"dist":10,"yl":-20,"hash":"M","form":"SLEY GW","fam":"3X1","pers":"11","type":"Run","play":"Q OZ WC","dir":"L","gain":-3,"res":"Rush","opp":"Guthrie","qtr":1,"str":"R","bf":"STRONG","mot":"H SHIFT"},{"dn":2,"dist":13,"yl":-17,"hash":"L","form":"TREY GW","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":-13,"res":"Rush","opp":"Guthrie","qtr":1,"str":"R","bf":"WEAK","mot":null},{"dn":3,"dist":26,"yl":-4,"hash":"L","form":"SNIFFER TRIPS GW","fam":"3X1","pers":"11","type":"Run","play":"POWER","dir":"R","gain":6,"res":"Rush","opp":"Guthrie","qtr":1,"str":"R","bf":"WEAK","mot":null},{"dn":1,"dist":10,"yl":-15,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP OUT FLAG","dir":"L","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":2,"dist":10,"yl":-15,"hash":"R","form":"SQZ DOUBLES","fam":"2X2","pers":"11","type":"Pass","play":"FLAG OUT","dir":"L","gain":10,"res":"Complete","opp":"Guthrie","qtr":1,"str":"L","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-25,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":-6,"res":"Rush","opp":"Guthrie","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":16,"yl":-19,"hash":"L","form":"NUB TRIPS GW","fam":"3X1","pers":"11","type":"Pass","play":"3 SHOOT SCREEN","dir":"R","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":1,"str":"L","bf":"WEAK","mot":null},{"dn":3,"dist":16,"yl":-19,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"R","gain":4,"res":"Complete","opp":"Guthrie","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-18,"hash":"R","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"TB SLOW SCREEN","dir":"L","gain":-9,"res":"Complete","opp":"Guthrie","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":19,"yl":-9,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"DIG GO","dir":"L","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":19,"yl":-9,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST MESH DIG","dir":"L","gain":42,"res":"Complete","opp":"Guthrie","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":49,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"R","gain":1,"res":"Rush","opp":"Guthrie","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":9,"yl":48,"hash":"L","form":"PRO TWINS GW","fam":"2X2","pers":"11","type":"Pass","play":"REVERSE FLEA FLICKER THROWBACK","dir":"L","gain":12,"res":"Complete","opp":"Guthrie","qtr":2,"str":"R","bf":"WEAK","mot":"Z JET"},{"dn":1,"dist":10,"yl":36,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"GO SLANT GO","dir":"L","gain":3,"res":"Scramble","opp":"Guthrie","qtr":2,"str":"R","bf":"GUN","mot":null},{"dn":2,"dist":7,"yl":33,"hash":"L","form":"NUB SQZ TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"3 SHOOT SCREEN","dir":"R","gain":18,"res":"Complete","opp":"Guthrie","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":15,"hash":"R","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"POWER","dir":"L","gain":5,"res":"Rush","opp":"Guthrie","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":5,"yl":10,"hash":"M","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"POWER","dir":"L","gain":-1,"res":"Rush","opp":"Guthrie","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":3,"dist":6,"yl":11,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST MESH DIG","dir":"L","gain":6,"res":"Penalty","opp":"Guthrie","qtr":2,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":3,"dist":5,"yl":5,"hash":"L","form":"PRO TWINS GW","fam":"2X2","pers":"11","type":"Pass","play":"BTLG THROWBACK","dir":"R","gain":-2,"res":"Penalty","opp":"Guthrie","qtr":2,"str":"BAL","bf":"BOUNDARY","mot":"Z JET"},{"dn":4,"dist":7,"yl":7,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":-1,"res":"Complete","opp":"Guthrie","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":33,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP POST SWING","dir":"L","gain":33,"res":"Complete, TD","opp":"Guthrie","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-35,"hash":"R","form":"SQZ DOUBLES GP","fam":"2X2","pers":"11","type":"Pass","play":"TB SLOW SCREEN","dir":"L","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":2,"str":"R","bf":"PISTOL","mot":null},{"dn":2,"dist":10,"yl":-35,"hash":"R","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"OUT FLAG","dir":"R","gain":-14,"res":"Sack","opp":"Guthrie","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":3,"dist":24,"yl":-21,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST WHEEL","dir":"R","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-24,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"DIG GO","dir":"R","gain":19,"res":"Complete","opp":"Guthrie","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-43,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"GO GO","dir":"L","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":2,"str":"R","bf":"GUN","mot":null},{"dn":2,"dist":10,"yl":-43,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"SLANT GO","dir":"R","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":2,"str":"L","bf":"GUN","mot":null},{"dn":1,"dist":10,"yl":-47,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":13,"res":"Complete","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":40,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"R","gain":-4,"res":"Complete","opp":"Guthrie","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":14,"yl":44,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":0,"res":"Complete","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":14,"yl":44,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"GO OUT","dir":"L","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":4,"dist":10,"yl":39,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"IZ","dir":"R","gain":-6,"res":"Rush","opp":"Guthrie","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":-24,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"IZ","dir":"L","gain":4,"res":"Rush","opp":"Guthrie","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":6,"yl":-28,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"R","gain":1,"res":"Complete","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":5,"yl":-29,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"DIG GO","dir":"L","gain":0,"res":"Incomplete","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":4,"dist":5,"yl":-29,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"DIG GO","dir":"L","gain":-8,"res":"Sack","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-11,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"GT","dir":"R","gain":54,"res":"Rush","opp":"Guthrie","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":35,"hash":"R","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"L","gain":10,"res":"Complete","opp":"Guthrie","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":25,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP POST","dir":"R","gain":20,"res":"Complete","opp":"Guthrie","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":5,"yl":5,"hash":"L","form":"SLEY GW","fam":"3X1","pers":"11","type":"Run","play":"IZ","dir":"R","gain":3,"res":"Rush","opp":"Guthrie","qtr":3,"str":"L","bf":"WEAK","mot":null},{"dn":2,"dist":2,"yl":2,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"OZ WILDCAT","dir":"L","gain":-4,"res":"Rush","opp":"Guthrie","qtr":3,"str":"L","bf":"FIELD","mot":"SHIFT TO THEN Z MOVE"},{"dn":3,"dist":6,"yl":6,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"SLANT OUT","dir":"R","gain":4,"res":"Penalty","opp":"Guthrie","qtr":3,"str":"L","bf":"GUN","mot":null},{"dn":3,"dist":2,"yl":2,"hash":"L","form":"EO SNIFFER TRIPS GS","fam":"EO","pers":"11","type":"Run","play":"Q POWER LEAD","dir":"R","gain":2,"res":"Rush, TD","opp":"Guthrie","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-30,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"GT","dir":"R","gain":70,"res":"Rush, TD","opp":"Guthrie","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-31,"hash":"L","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Run","play":"OZ","dir":"R","gain":20,"res":"Rush","opp":"Lawton","qtr":1,"str":"BAL","bf":"DIAMOND","mot":"H SHIFT"},{"dn":1,"dist":10,"yl":49,"hash":"R","form":"ACE","fam":"2X2","pers":"10","type":"Pass","play":"POST MESH DIG","dir":"R","gain":0,"res":"Incomplete","opp":"Lawton","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":10,"yl":49,"hash":"R","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Pass","play":"Z SHOOT SCREEN","dir":"L","gain":2,"res":"Complete","opp":"Lawton","qtr":1,"str":"L","bf":"DIAMOND","mot":"H SHIFT"},{"dn":3,"dist":8,"yl":47,"hash":"L","form":"DBL SLOT GP","fam":"2X2","pers":"10","type":"Run","play":"OZ","dir":"R","gain":1,"res":"Rush","opp":"Lawton","qtr":1,"str":"BAL","bf":"PISTOL","mot":"H SHIFT"},{"dn":1,"dist":10,"yl":-39,"hash":"L","form":"SLEY GP","fam":"3X1","pers":"11","type":"Pass","play":"PA POST POST","dir":"L","gain":0,"res":"Incomplete","opp":"Lawton","qtr":1,"str":"R","bf":"PISTOL","mot":null},{"dn":2,"dist":10,"yl":-39,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP OUT FLAG","dir":"R","gain":-5,"res":"Penalty","opp":"Lawton","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":2,"dist":15,"yl":-34,"hash":"L","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Run","play":"Q IZ","dir":"R","gain":6,"res":"Rush","opp":"Lawton","qtr":1,"str":"R","bf":"DIAMOND","mot":"H SHIFT RB OUT"},{"dn":3,"dist":9,"yl":-40,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"1 JB","dir":"R","gain":3,"res":"Complete","opp":"Lawton","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":47,"hash":"L","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Run","play":"GH","dir":"R","gain":0,"res":"Rush","opp":"Lawton","qtr":1,"str":"BAL","bf":"DIAMOND","mot":"Z SHIFT"},{"dn":2,"dist":10,"yl":47,"hash":"M","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"L","gain":1,"res":"Rush","opp":"Lawton","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":9,"yl":46,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"GO DIG","dir":"L","gain":0,"res":"Incomplete","opp":"Lawton","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":4,"dist":9,"yl":46,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST MESH DIG","dir":"R","gain":0,"res":"Complete","opp":"Lawton","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":-31,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":69,"res":"Complete, TD","opp":"Lawton","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-17,"hash":"L","form":"PRO SLOT GP","fam":"2X2","pers":"12","type":"Run","play":"OZ","dir":"R","gain":-3,"res":"Rush","opp":"Lawton","qtr":2,"str":"R","bf":"PISTOL","mot":"H SHIFT"},{"dn":2,"dist":13,"yl":-14,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":11,"res":"Rush","opp":"Lawton","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":2,"yl":-25,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"L","gain":21,"res":"Rush","opp":"Lawton","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-46,"hash":"M","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"STOP STOP","dir":"R","gain":1,"res":"Complete","opp":"Lawton","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":9,"yl":-47,"hash":"R","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"PA SLANT SLANT","dir":"R","gain":4,"res":"Rush","opp":"Lawton","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":3,"dist":5,"yl":49,"hash":"R","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"R","gain":-6,"res":"Rush","opp":"Lawton","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-35,"hash":"R","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Pass","play":"TB SLOW SCREEN","dir":"L","gain":9,"res":"Complete","opp":"Lawton","qtr":2,"str":"R","bf":"DIAMOND","mot":"H BEHIND"},{"dn":2,"dist":1,"yl":-44,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":null,"res":"Fumble","opp":"Lawton","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-20,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":9,"res":"Rush","opp":"Lawton","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":2,"dist":1,"yl":-29,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SLANT GO","dir":"R","gain":7,"res":"Rush","opp":"Lawton","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-36,"hash":"M","form":"TRIPS GW","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"L","gain":33,"res":"Penalty","opp":"Lawton","qtr":2,"str":"L","bf":"WEAK","mot":null},{"dn":1,"dist":10,"yl":31,"hash":"L","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"GH","dir":"R","gain":3,"res":"Rush","opp":"Lawton","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":7,"yl":28,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"1 JB","dir":"R","gain":0,"res":"Incomplete","opp":"Lawton","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":7,"yl":28,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"GO POST","dir":"L","gain":0,"res":"Incomplete","opp":"Lawton","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":4,"dist":7,"yl":28,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST MESH DIG","dir":"R","gain":0,"res":"Complete","opp":"Lawton","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-35,"hash":"L","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Run","play":"OZ","dir":"R","gain":24,"res":"Rush","opp":"Lawton","qtr":3,"str":"R","bf":"DIAMOND","mot":"H SHIFT"},{"dn":1,"dist":10,"yl":41,"hash":"R","form":"DBL SLOT GP","fam":"2X2","pers":"10","type":"Run","play":"OZ","dir":"L","gain":7,"res":"Rush","opp":"Lawton","qtr":3,"str":"BAL","bf":"PISTOL","mot":"Z SHIFT"},{"dn":2,"dist":3,"yl":34,"hash":"L","form":"DBL SLOT","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"R","gain":0,"res":"Incomplete","opp":"Lawton","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":3,"yl":34,"hash":"L","form":"DBL SLOT GP","fam":"2X2","pers":"10","type":"Run","play":"OZ","dir":"L","gain":null,"res":"Fumble","opp":"Lawton","qtr":3,"str":"R","bf":"PISTOL","mot":"H SHIFT"},{"dn":1,"dist":10,"yl":-33,"hash":"M","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"PA SLANT SLANT","dir":"R","gain":0,"res":"Incomplete","opp":"Lawton","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":10,"yl":-33,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"PA POST OUT","dir":"R","gain":0,"res":"Incomplete","opp":"Lawton","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":10,"yl":-33,"hash":"M","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"STOP SLANT","dir":"R","gain":17,"res":"Complete","opp":"Lawton","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":50,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"R","gain":4,"res":"Rush","opp":"Lawton","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":6,"yl":46,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"ISO SLANT","dir":"L","gain":null,"res":"Fumble","opp":"Lawton","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-13,"hash":"L","form":"OPEN GBP","fam":"3 BACK","pers":"30","type":"Run","play":"OZ","dir":"R","gain":-5,"res":"Penalty","opp":"Lawton","qtr":3,"str":"R","bf":"DIAMOND","mot":"H SHIFT"},{"dn":1,"dist":15,"yl":-8,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"1 JB","dir":"L","gain":9,"res":"Complete","opp":"Lawton","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":6,"yl":-17,"hash":"L","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"STOP STOP","dir":"R","gain":1,"res":"Complete","opp":"Lawton","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":5,"yl":-18,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":0,"res":"Incomplete","opp":"Lawton","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-35,"hash":"L","form":"SNIFFER TRIPS GP","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"R","gain":53,"res":"Rush","opp":"Lawton","qtr":4,"str":"R","bf":"PISTOL","mot":"H MOVE"},{"dn":1,"dist":10,"yl":12,"hash":"R","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"L","gain":5,"res":"Rush","opp":"Lawton","qtr":4,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":5,"yl":7,"hash":"L","form":"SNIFFER TRIPS GP","fam":"3X1","pers":"11","type":"Run","play":"POWER","dir":"R","gain":-1,"res":"Rush","opp":"Lawton","qtr":4,"str":"R","bf":"PISTOL","mot":null},{"dn":3,"dist":6,"yl":8,"hash":"M","form":"SNIFFER TRIPS GP","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":8,"res":"Rush, TD","opp":"Lawton","qtr":4,"str":"R","bf":"PISTOL","mot":"H MOVE"},{"dn":1,"dist":10,"yl":34,"hash":"R","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA POST POST","dir":"L","gain":-7,"res":"Sack","opp":"Lawton","qtr":4,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":17,"yl":41,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":-10,"res":"Penalty","opp":"Lawton","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":2,"dist":27,"yl":-49,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":0,"res":"Incomplete","opp":"Lawton","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":27,"yl":-49,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"DIG GO","dir":"L","gain":18,"res":"Complete","opp":"Lawton","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":4,"dist":9,"yl":33,"hash":"M","form":"TRIPS GW","fam":"3X1","pers":"10","type":"Pass","play":"ISO GO","dir":"L","gain":15,"res":"Complete","opp":"Lawton","qtr":4,"str":"R","bf":"WEAK","mot":null},{"dn":1,"dist":10,"yl":18,"hash":"M","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"SOP C FLAG SHOOT","dir":"R","gain":0,"res":"Incomplete","opp":"Lawton","qtr":4,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":10,"yl":18,"hash":"R","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"SOP C FLAG SHOOT","dir":"L","gain":0,"res":"Complete","opp":"Lawton","qtr":4,"str":"L","bf":"STRONG","mot":null},{"dn":3,"dist":10,"yl":18,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"PA SLANT SLANT","dir":"R","gain":18,"res":"Complete, TD","opp":"Lawton","qtr":4,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-46,"hash":"L","form":"NUB TRIPS GW","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":-12,"res":"Rush","opp":"Noble","qtr":1,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":22,"yl":-34,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"R","gain":21,"res":"Complete","opp":"Noble","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":3,"dist":1,"yl":45,"hash":"R","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"R","gain":8,"res":"Fumble","opp":"Noble","qtr":1,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-17,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"SLANT OUT","dir":"L","gain":5,"res":"Complete","opp":"Noble","qtr":1,"str":"R","bf":"GUN","mot":null},{"dn":2,"dist":5,"yl":-22,"hash":"L","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Run","play":"JET SWEEP","dir":"L","gain":6,"res":"Rush","opp":"Noble","qtr":1,"str":"R","bf":"GUN","mot":"Z JET"},{"dn":1,"dist":10,"yl":-28,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"L","gain":5,"res":"Rush","opp":"Noble","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":5,"yl":-33,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"TB SHOOT SCREEN","dir":"R","gain":19,"res":"Complete","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":48,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"GH","dir":"L","gain":9,"res":"Rush","opp":"Noble","qtr":1,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":1,"yl":39,"hash":"M","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"R","gain":-5,"res":"Penalty","opp":"Noble","qtr":1,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":6,"yl":44,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP OUT FLAG","dir":"L","gain":12,"res":"Complete","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":32,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"POST POST","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":10,"yl":32,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":5,"res":"Complete","opp":"Noble","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":3,"dist":5,"yl":27,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"JET REVERSE","dir":"R","gain":10,"res":"Rush","opp":"Noble","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":"Z JET"},{"dn":1,"dist":10,"yl":17,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":2,"dist":10,"yl":17,"hash":"R","form":"NUB BUNCH GS","fam":"3X1","pers":"12","type":"Run","play":"OZ","dir":"L","gain":8,"res":"Rush","opp":"Noble","qtr":1,"str":"BAL","bf":"STRONG","mot":null},{"dn":3,"dist":2,"yl":9,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"1 FAST","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-9,"hash":"L","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":12,"res":"Rush","opp":"Noble","qtr":1,"str":"R","bf":"PISTOL","mot":null},{"dn":1,"dist":10,"yl":-21,"hash":"L","form":"PRO TWINS GW","fam":"2X2","pers":"11","type":"Pass","play":"3 BUBBLE THROWBACK","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"L","bf":"WEAK","mot":"Z BEHIND"},{"dn":2,"dist":10,"yl":-21,"hash":"L","form":"SQZ SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"GO POST","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":10,"yl":-21,"hash":"L","form":"SLOT TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"POST DIG SHALLOW","dir":"R","gain":null,"res":"Interception","opp":"Noble","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-40,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"OZ","dir":"L","gain":1,"res":"Rush","opp":"Noble","qtr":1,"str":"L","bf":"STRONG","mot":"Z MOVE"},{"dn":2,"dist":9,"yl":-41,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":9,"res":"Complete","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":50,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"OZ","dir":"L","gain":19,"res":"Rush","opp":"Noble","qtr":1,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":31,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"R","gain":1,"res":"Complete","opp":"Noble","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":9,"yl":30,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":9,"yl":30,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"R","gain":-10,"res":"Sack","opp":"Noble","qtr":1,"str":"BAL","bf":"FIELD","mot":null},{"dn":4,"dist":19,"yl":40,"hash":"R","form":"NUB TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"GO SLANT GO","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":44,"hash":"R","form":"SQZ DOUBLES GP","fam":"2X2","pers":"11","type":"Run","play":"OZ","dir":"R","gain":10,"res":"Rush","opp":"Noble","qtr":2,"str":"BAL","bf":"PISTOL","mot":null},{"dn":1,"dist":10,"yl":34,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"GH","dir":"R","gain":34,"res":"Rush, TD","opp":"Noble","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-17,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"GT","dir":"L","gain":65,"res":"Rush","opp":"Noble","qtr":2,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":18,"hash":"L","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"PA ISO POST","dir":"L","gain":18,"res":"Complete, TD","opp":"Noble","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-24,"hash":"L","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"OZ","dir":"L","gain":1,"res":"Rush","opp":"Noble","qtr":2,"str":"R","bf":"STRONG","mot":"Z MOVE"},{"dn":2,"dist":9,"yl":-25,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":9,"yl":-25,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"R","gain":13,"res":"Complete","opp":"Noble","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-38,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"GT","dir":"L","gain":4,"res":"Rush","opp":"Noble","qtr":2,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":6,"yl":-42,"hash":"M","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"R","gain":8,"res":"Complete","opp":"Noble","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":50,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"R","gain":-1,"res":"Complete","opp":"Noble","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":2,"dist":11,"yl":-49,"hash":"R","form":"DOUBLES GP","fam":"2X2","pers":"10","type":"Run","play":"IZ","dir":"L","gain":2,"res":"Rush","opp":"Noble","qtr":2,"str":"BAL","bf":"PISTOL","mot":null},{"dn":3,"dist":9,"yl":49,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":8,"res":"Complete","opp":"Noble","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":36,"hash":"L","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"BTLG OUT OUT","dir":"R","gain":-10,"res":"Penalty","opp":"Noble","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":20,"yl":46,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP OUT FLAG","dir":"L","gain":12,"res":"Complete","opp":"Noble","qtr":2,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":8,"yl":34,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP GO OUT OUT","dir":"R","gain":6,"res":"Complete","opp":"Noble","qtr":2,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":2,"yl":28,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"GH","dir":"L","gain":-3,"res":"Penalty","opp":"Noble","qtr":2,"str":"L","bf":"STRONG","mot":null},{"dn":3,"dist":5,"yl":31,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP GO PIPE","dir":"R","gain":27,"res":"Complete","opp":"Noble","qtr":2,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":4,"yl":4,"hash":"M","form":"WILDCAT 10","fam":"WILDCAT","pers":"WC","type":"Run","play":"Q OZ","dir":"L","gain":4,"res":"Rush, TD","opp":"Noble","qtr":2,"str":"L","bf":"GUN","mot":"Z MOVE"},{"dn":1,"dist":10,"yl":-8,"hash":"M","form":"SQZ SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"R","gain":9,"res":"Rush","opp":"Noble","qtr":3,"str":"BAL","bf":"PISTOL","mot":null},{"dn":2,"dist":1,"yl":-17,"hash":"R","form":"SQZ SNIFFER TRIPS GP","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":-8,"res":"Penalty","opp":"Noble","qtr":3,"str":"L","bf":"PISTOL","mot":null},{"dn":2,"dist":9,"yl":-9,"hash":"L","form":"SQZ SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":7,"res":"Rush","opp":"Noble","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":3,"dist":2,"yl":-16,"hash":"L","form":"SQZ SNIFFER TRIPS GW","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"R","gain":0,"res":"Rush","opp":"Noble","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":4,"dist":2,"yl":-16,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":-5,"hash":"L","form":"SLEY GP","fam":"3X1","pers":"11","type":"Pass","play":"PA STALK AND GOES","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":3,"str":"R","bf":"PISTOL","mot":null},{"dn":2,"dist":10,"yl":-5,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"R","gain":5,"res":"Rush","opp":"Noble","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":5,"yl":-10,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP STOP","dir":"R","gain":8,"res":"Complete","opp":"Noble","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-18,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"PA ISO SLANT","dir":"R","gain":32,"res":"Complete","opp":"Noble","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":50,"hash":"M","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"R","gain":-5,"res":"Penalty","opp":"Noble","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":15,"yl":-45,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"PA GO POST","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":2,"dist":15,"yl":-45,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP OUT FLAG","dir":"L","gain":11,"res":"Complete","opp":"Noble","qtr":3,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":4,"yl":44,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":-5,"res":"Rush","opp":"Noble","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":45,"hash":"L","form":"SQZ SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"POST OUT","dir":"R","gain":20,"res":"Complete","opp":"Noble","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":25,"hash":"R","form":"SLEY GS","fam":"3X1","pers":"11","type":"Pass","play":"PA STOP STOP","dir":"L","gain":3,"res":"Complete","opp":"Noble","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":7,"yl":22,"hash":"L","form":"SNIFFER TWINS GW","fam":"2X2","pers":"11","type":"Run","play":"OZ","dir":"R","gain":2,"res":"Rush","opp":"Noble","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":5,"yl":20,"hash":"M","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA SLANT SLANT","dir":"R","gain":20,"res":"Complete, TD","opp":"Noble","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-11,"hash":"L","form":"SLOT TWINS GW","fam":"2X2","pers":"11","type":"Pass","play":"STOP POST","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":4,"str":"BAL","bf":"WEAK","mot":null},{"dn":2,"dist":10,"yl":-11,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SQUARE IN POST","dir":"L","gain":4,"res":"Scramble","opp":"Noble","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":6,"yl":-15,"hash":"L","form":"SQZ SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA POST POST BKSD DIG","dir":"R","gain":-7,"res":"Rush","opp":"Noble","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-1,"hash":"L","form":"SQZ SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"Q POWER","dir":"L","gain":6,"res":"Rush","opp":"Noble","qtr":4,"str":"L","bf":"STRONG","mot":"RB OUT"},{"dn":2,"dist":4,"yl":-7,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"POWER","dir":"R","gain":5,"res":"Rush","opp":"Noble","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-12,"hash":"L","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Pass","play":"PA SLANT GO","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":4,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":10,"yl":-12,"hash":"L","form":"SNIFFER TRIPS GW","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"R","gain":7,"res":"Rush","opp":"Noble","qtr":4,"str":"R","bf":"WEAK","mot":null},{"dn":3,"dist":3,"yl":-19,"hash":"R","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA SLANT SLANT","dir":"R","gain":0,"res":"Incomplete","opp":"Noble","qtr":4,"str":"L","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":33,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"GO FLAG","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":4,"str":null,"bf":"FIELD","mot":null},{"dn":3,"dist":8,"yl":31,"hash":"M","form":"NUB BUNCH GS","fam":"3X1","pers":"12","type":"Run","play":"OZ","dir":"L","gain":20,"res":"Rush","opp":"Noble","qtr":4,"str":"BAL","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":11,"hash":"L","form":"NUB BUNCH GS","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"R","gain":-8,"res":"Rush","opp":"Noble","qtr":4,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":18,"yl":19,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"PA STOP SLANT","dir":"L","gain":10,"res":"Complete","opp":"Noble","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":3,"dist":8,"yl":9,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"1 FAST","dir":"R","gain":3,"res":"Complete","opp":"Noble","qtr":4,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":4,"dist":8,"yl":8,"hash":"R","form":"DBL SLOT","fam":"2X2","pers":"10","type":"Pass","play":"SLANT OUT","dir":"L","gain":0,"res":"Incomplete","opp":"Noble","qtr":4,"str":"BAL","bf":"FIELD","mot":null},{"dn":1,"dist":10,"yl":-47,"hash":"L","form":"DBL SLOT","fam":"2X2","pers":"10","type":"Pass","play":"PA POST WHEEL","dir":"R","gain":null,"res":"Interception","opp":"Durant","qtr":1,"str":"L","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":-15,"hash":"R","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"IZ","dir":"L","gain":5,"res":"Rush","opp":"Durant","qtr":1,"str":"L","bf":"PISTOL","mot":null},{"dn":2,"dist":5,"yl":-20,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"STOP FLAG","dir":"L","gain":4,"res":"Complete","opp":"Durant","qtr":1,"str":"BAL","bf":"LEFT","mot":null},{"dn":3,"dist":1,"yl":-24,"hash":"L","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"IZ","dir":"L","gain":6,"res":"Rush","opp":"Durant","qtr":1,"str":"R","bf":"PISTOL","mot":null},{"dn":1,"dist":10,"yl":-30,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"3 BUBBLE","dir":"R","gain":-1,"res":"Complete","opp":"Durant","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":11,"yl":-29,"hash":"R","form":"EMPTY 3X2","fam":"3X2","pers":"00","type":"Pass","play":"GO DIG GO","dir":"L","gain":17,"res":"Complete","opp":"Durant","qtr":1,"str":"R","bf":"GUN","mot":null},{"dn":1,"dist":10,"yl":-46,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA ISO POST","dir":"L","gain":0,"res":"Incomplete","opp":"Durant","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":10,"yl":-46,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"L","gain":54,"res":"Rush, TD","opp":"Durant","qtr":1,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-20,"hash":"R","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"IZ","dir":"L","gain":2,"res":"Rush","opp":"Durant","qtr":2,"str":"L","bf":"PISTOL","mot":null},{"dn":2,"dist":8,"yl":-22,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Pass","play":"GO FOX BUBBLE","dir":"R","gain":16,"res":"Complete","opp":"Durant","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-38,"hash":"R","form":"SNIFFER TWINS GW","fam":"2X2","pers":"11","type":"Run","play":"POWER","dir":"R","gain":-2,"res":"Rush","opp":"Durant","qtr":2,"str":"L","bf":"WEAK","mot":null},{"dn":2,"dist":12,"yl":-36,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SLANT POST","dir":"L","gain":3,"res":"Scramble","opp":"Durant","qtr":2,"str":"BAL","bf":"LEFT","mot":null},{"dn":3,"dist":9,"yl":-39,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"GO SLANT","dir":"L","gain":0,"res":"Incomplete","opp":"Durant","qtr":2,"str":"BAL","bf":"RIGHT","mot":null},{"dn":1,"dist":10,"yl":-40,"hash":"R","form":"PRO TWINS GW","fam":"2X2","pers":"11","type":"Pass","play":"REVERSE FLEA FLICKER THROWBACK","dir":"L","gain":23,"res":"Complete","opp":"Durant","qtr":2,"str":"R","bf":"WEAK","mot":"Z JET"},{"dn":1,"dist":15,"yl":42,"hash":"L","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"IZ","dir":"R","gain":7,"res":"Rush","opp":"Durant","qtr":2,"str":"R","bf":"PISTOL","mot":null},{"dn":2,"dist":8,"yl":35,"hash":"M","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":1,"res":"Rush","opp":"Durant","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":2,"yl":29,"hash":"L","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"IZ","dir":"R","gain":-6,"res":"Rush","opp":"Durant","qtr":2,"str":"R","bf":"PISTOL","mot":null},{"dn":4,"dist":8,"yl":35,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"SOP COMEBACK OUT","dir":"L","gain":0,"res":"Incomplete","opp":"Durant","qtr":2,"str":"BAL","bf":"LEFT","mot":null},{"dn":1,"dist":10,"yl":-46,"hash":"R","form":"DOUBLES","fam":"2X2","pers":"10","type":"Run","play":"OZ","dir":"L","gain":54,"res":"Rush, TD","opp":"Durant","qtr":2,"str":"BAL","bf":"RIGHT","mot":null},{"dn":1,"dist":10,"yl":37,"hash":"L","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"OZ","dir":"L","gain":5,"res":"Rush","opp":"Durant","qtr":2,"str":"R","bf":"WEAK","mot":null},{"dn":2,"dist":5,"yl":32,"hash":"L","form":"SQZ SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA POST OUT","dir":"R","gain":30,"res":"Complete","opp":"Durant","qtr":2,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":2,"yl":2,"hash":"R","form":"WILDCAT","fam":"WILDCAT","pers":"WC","type":"Run","play":"POWER","dir":"L","gain":2,"res":"Rush, TD","opp":"Durant","qtr":2,"str":"L","bf":"WILDCAT","mot":"ZH SHIFT"},{"dn":1,"dist":10,"yl":-38,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"SOP BACKSIDE POST","dir":"L","gain":-11,"res":"Penalty","opp":"Durant","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":21,"yl":-27,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"PA STOP FLAG","dir":"R","gain":5,"res":"Complete","opp":"Durant","qtr":3,"str":"BAL","bf":"RIGHT","mot":null},{"dn":2,"dist":16,"yl":-32,"hash":"R","form":"SNIFFER TWINS GS","fam":"2X2","pers":"11","type":"Run","play":"OZ","dir":"L","gain":25,"res":"Rush","opp":"Durant","qtr":3,"str":"L","bf":"STRONG","mot":"Z SHIFT"},{"dn":1,"dist":10,"yl":43,"hash":"L","form":"DOUBLES GP","fam":"2X2","pers":"10","type":"Run","play":"IZ","dir":"R","gain":2,"res":"Rush","opp":"Durant","qtr":3,"str":"BAL","bf":"PISTOL","mot":null},{"dn":2,"dist":8,"yl":41,"hash":"R","form":"SLEY GP","fam":"3X1","pers":"11","type":"Pass","play":"ISO STOP","dir":"R","gain":11,"res":"Complete","opp":"Durant","qtr":3,"str":"L","bf":"PISTOL","mot":null},{"dn":1,"dist":10,"yl":30,"hash":"R","form":"TRIPS GS","fam":"3X1","pers":"10","type":"Run","play":"GT","dir":"R","gain":4,"res":"Rush","opp":"Durant","qtr":3,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":6,"yl":26,"hash":"R","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":-3,"res":"Rush","opp":"Durant","qtr":3,"str":"L","bf":"PISTOL","mot":null},{"dn":3,"dist":9,"yl":29,"hash":"L","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"2 JB","dir":"L","gain":15,"res":"Complete","opp":"Durant","qtr":3,"str":"BAL","bf":"BOUNDARY","mot":null},{"dn":1,"dist":10,"yl":14,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA POST POST","dir":"R","gain":0,"res":"Incomplete","opp":"Durant","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":2,"dist":10,"yl":14,"hash":"M","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"POWER","dir":"L","gain":9,"res":"Rush","opp":"Durant","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":3,"dist":1,"yl":5,"hash":"M","form":"SNIFFER TWINS GW","fam":"2X2","pers":"11","type":"Run","play":"SPLIT ZONE","dir":"L","gain":5,"res":"Rush, TD","opp":"Durant","qtr":3,"str":"R","bf":"WEAK","mot":null},{"dn":1,"dist":10,"yl":19,"hash":"L","form":"SNIFFER TWINS GW","fam":"2X2","pers":"11","type":"Run","play":"POWER","dir":"L","gain":-2,"res":"Rush","opp":"Durant","qtr":3,"str":"L","bf":"WEAK","mot":"Z SHIFT"},{"dn":2,"dist":12,"yl":21,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Pass","play":"PA SLANT POST","dir":"R","gain":21,"res":"Complete, TD","opp":"Durant","qtr":3,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-13,"hash":"R","form":"SLEY GP","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":2,"res":"Rush","opp":"Durant","qtr":4,"str":"L","bf":"PISTOL","mot":null},{"dn":2,"dist":8,"yl":-15,"hash":"M","form":"DOUBLES","fam":"2X2","pers":"10","type":"Pass","play":"1 FAST","dir":"L","gain":8,"res":"Complete","opp":"Durant","qtr":4,"str":"BAL","bf":"RIGHT","mot":null},{"dn":2,"dist":5,"yl":-28,"hash":"L","form":"SNIFFER TRIPS GS","fam":"3X1","pers":"11","type":"Run","play":"POWER","dir":"L","gain":7,"res":"Rush","opp":"Durant","qtr":4,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":-35,"hash":"L","form":"SNIFFER TWINS GW","fam":"2X2","pers":"11","type":"Run","play":"OZ","dir":"L","gain":65,"res":"Rush, TD","opp":"Durant","qtr":4,"str":"R","bf":"STRONG","mot":null},{"dn":1,"dist":10,"yl":22,"hash":"R","form":"NUB BUNCH GS","fam":"3X1","pers":"11","type":"Run","play":"OZ","dir":"L","gain":5,"res":"Rush","opp":"Durant","qtr":4,"str":"L","bf":"STRONG","mot":null},{"dn":2,"dist":5,"yl":17,"hash":"L","form":"SLEY GS","fam":"3X1","pers":"11","type":"Run","play":"GH","dir":"L","gain":17,"res":"Rush, TD","opp":"Durant","qtr":4,"str":"R","bf":"STRONG","mot":null}]};
+let DATA = SAMPLE;
+try{const s=localStorage.getItem('dpp-data'); if(s) DATA=JSON.parse(s);}catch(e){}
+
+const S={ytg:75,hash:'L',dn:1,dist:10,form:null,fam:null,pers:null};
+const $=id=>document.getElementById(id);
+
+function ytgOf(yl){ if(yl==null) return 50; if(yl<0) return 100+yl; if(yl===0) return 50; return yl; }
+function spotLabel(y){ if(y===50) return '50'; return y>50?('Own '+(100-y)):('Opp '+y); }
+const HASHN={L:'Left hash',M:'Middle',R:'Right hash'};
+function prep(){ DATA.rows.forEach(r=>{r._y=ytgOf(r.yl); r.form=r.form||'(none)'; r.fam=r.fam||'—';}); }
+
+/* ---------- field ---------- */
+const NS='http://www.w3.org/2000/svg';
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||field).appendChild(e);return e;}
+const field=$('field');
+const X=y=>100+(100-y)*10; // yards-to-goal -> x
+const HY={L:178,M:266,R:355};
+function drawField(){
+  field.innerHTML='';
+  for(let i=0;i<10;i++) el('rect',{x:100+i*100,y:0,width:100,height:533,fill:i%2?'var(--turf2)':'var(--turf)'});
+  el('rect',{x:0,y:0,width:100,height:533,fill:'#1a1415'});
+  el('rect',{x:1100,y:0,width:100,height:533,fill:'var(--red)'});
+  const t1=el('text',{x:50,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:'rotate(-90 50 266)','letter-spacing':6});t1.textContent=(DATA.team||'OFFENSE').toUpperCase().slice(0,14);
+  const t2=el('text',{x:1150,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:'rotate(90 1150 266)','letter-spacing':6});t2.textContent='DEMONS';
+  for(let yd=0;yd<=100;yd+=5){const x=100+yd*10; el('line',{x1:x,y1:0,x2:x,y2:533,stroke:'var(--chalk)','stroke-width':yd%50===0?4:2});}
+  for(let yd=1;yd<100;yd++){ if(yd%5===0) continue; const x=100+yd*10;
+    [[0,12],[521,533],[170,186],[347,363]].forEach(([a,b])=>el('line',{x1:x,y1:a,x2:x,y2:b,stroke:'var(--chalk)','stroke-width':2}));}
+  for(let yd=10;yd<=90;yd+=10){const n=yd<=50?yd:100-yd; const x=100+yd*10;
+    [[60,0],[473,180]].forEach(([y,r])=>{const t=el('text',{x,y,fill:'rgba(255,255,255,.75)','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':700,'font-size':40,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${r} ${x} ${y})`});t.textContent=n;});}
+  el('text',{x:600,y:520,fill:'rgba(255,255,255,.55)','font-family':'Barlow, sans-serif','font-size':16,'text-anchor':'middle'}).textContent='OFFENSE DRIVING THIS WAY  →';
+  el('line',{id:'fd',x1:0,y1:0,x2:0,y2:533,stroke:'#f5c400','stroke-width':5,opacity:.9});
+  el('line',{id:'los',x1:0,y1:0,x2:0,y2:533,stroke:'#5ab0ff','stroke-width':5,opacity:.9});
+  el('ellipse',{id:'ball',cx:0,cy:0,rx:20,ry:12,fill:'#7a3b1d',stroke:'#fff','stroke-width':3});
+}
+function drawSpot(){
+  const x=X(S.ytg), fx=X(Math.max(0,S.ytg-S.dist));
+  $('los').setAttribute('x1',x);$('los').setAttribute('x2',x);
+  const fd=$('fd'); fd.setAttribute('x1',fx);fd.setAttribute('x2',fx); fd.setAttribute('opacity',S.dist>=S.ytg?0:.9);
+  $('ball').setAttribute('cx',x);$('ball').setAttribute('cy',HY[S.hash]);
+  $('spotTxt').innerHTML=spotLabel(S.ytg)+'<small>'+HASHN[S.hash]+'</small>';
+}
+$('fieldWrap').addEventListener('click',e=>{
+  const pt=field.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+  const p=pt.matrixTransform(field.getScreenCTM().inverse());
+  const yd=Math.round((p.x-100)/10); S.ytg=Math.min(99,Math.max(1,100-yd));
+  S.hash=p.y<222?'L':p.y>310?'R':'M';
+  update();
+});
+document.querySelectorAll('[data-ny]').forEach(b=>b.onclick=()=>{S.ytg=Math.min(99,Math.max(1,S.ytg-(+b.dataset.ny)));update();});
+
+/* ---------- controls ---------- */
+function chipRow(host,items,isOn,onPick){
+  host.innerHTML='';
+  items.forEach(it=>{const b=document.createElement('button');b.className='chip';b.type='button';
+    b.setAttribute('aria-pressed',isOn(it.v)?'true':'false');
+    b.innerHTML=`<span>${it.t}</span>`+(it.n!=null?`<span class="n">${it.n}</span>`:'');
+    b.onclick=()=>{onPick(it.v);update();};host.appendChild(b);});
+}
+function counts(key){const m={};DATA.rows.forEach(r=>{const k=r[key];if(k!=null)m[k]=(m[k]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
+function renderControls(){
+  chipRow($('hashChips'),['L','M','R'].map(h=>({v:h,t:HASHN[h]})),v=>S.hash===v,v=>S.hash=v);
+  chipRow($('downChips'),[1,2,3,4].map(d=>({v:d,t:['1st','2nd','3rd','4th'][d-1]})),v=>S.dn===v,v=>S.dn=v);
+  $('distOut').textContent=S.dist>=S.ytg?'G':S.dist;
+  chipRow($('distChips'),[1,2,3,5,7,10,15].map(d=>({v:d,t:d})),v=>S.dist===v,v=>S.dist=v);
+  const fc=counts('form');
+  chipRow($('formChips'),[{v:null,t:'Any'}].concat(fc.slice(0,12).map(([f,n])=>({v:f,t:f,n}))),v=>S.form===v,v=>{S.form=v;S.fam=null;});
+  const sel=$('formSel'); sel.innerHTML='<option value="">All formations…</option>'+fc.map(([f,n])=>`<option ${S.form===f?'selected':''}>${f}</option>`).join('');
+  chipRow($('famChips'),counts('fam').map(([f,n])=>({v:f,t:f,n})),v=>!S.form&&S.fam===v,v=>{S.fam=S.fam===v?null:v;S.form=null;});
+  chipRow($('persChips'),[{v:null,t:'Any'}].concat(counts('pers').map(([p,n])=>({v:p,t:p,n}))),v=>S.pers===v,v=>S.pers=v);
+}
+$('formSel').onchange=e=>{S.form=e.target.value||null;S.fam=null;update();};
+$('dMinus').onclick=()=>{S.dist=Math.max(1,S.dist-1);update();};
+$('dPlus').onclick=()=>{S.dist=Math.min(40,S.dist+1);update();};
+$('clearSit').onclick=()=>{Object.assign(S,{ytg:75,hash:'L',dn:1,dist:10,form:null,fam:null,pers:null});update();};
+
+/* ---------- model ---------- */
+function famOf(form){const r=DATA.rows.find(r=>r.form===form);return r?r.fam:null;}
+function weight(r){
+  let w=1;
+  w*= r.dn===S.dn?1:(Math.abs(r.dn-S.dn)===1?0.3:0.08);
+  w*= Math.exp(-Math.abs(r.dist-S.dist)/(S.dist<=3?2:4));
+  const sGL=S.dist>=S.ytg, rGL=r.dist>=r._y; if(sGL!==rGL) w*=0.6;
+  w*= Math.exp(-Math.abs(r._y-S.ytg)/22);
+  const zone=y=>y<=20?0:y<=40?1:y<=80?2:3; if(zone(r._y)===zone(S.ytg)) w*=1.25;
+  w*= r.hash===S.hash?1:0.7;
+  if(S.form){ w*= r.form===S.form?1:(r.fam===famOf(S.form)?0.25:0.04); }
+  else if(S.fam){ w*= r.fam===S.fam?1:0.06; }
+  if(S.pers){ w*= String(r.pers)===String(S.pers)?1:0.35; }
+  return w;
+}
+function predict(){
+  const sc=DATA.rows.map(r=>({r,w:weight(r)})).sort((a,b)=>b.w-a.w);
+  const W=sc.reduce((s,x)=>s+x.w,0), W2=sc.reduce((s,x)=>s+x.w*x.w,0);
+  const eff=W*W/(W2||1);
+  const agg=(f)=>{const m={};sc.forEach(x=>{const k=f(x.r);if(k==null)return;m[k]=(m[k]||0)+x.w;});return Object.entries(m).map(([k,v])=>[k,v/W]).sort((a,b)=>b[1]-a[1]);};
+  const type=Object.fromEntries(agg(r=>r.type));
+  const plays=agg(r=>r.play+'|'+r.type).slice(0,6).map(([k,v])=>{const [p,t]=k.split('|');return{p,t,v};});
+  const dir=Object.fromEntries(agg(r=>r.dir));
+  const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
+  const exact=DATA.rows.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2&&(!S.form||r.form===S.form)&&(S.form||!S.fam||r.fam===S.fam));
+  return {sc,eff,type,plays,dir,gain,exact};
+}
+function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
+const ord=d=>['1st','2nd','3rd','4th'][d-1];
+
+function renderRead(){
+  const P=predict(), run=P.type.Run||0, pass=P.type.Pass||0;
+  const lean=run>=pass?'Run':'Pass', lp=Math.round(Math.max(run,pass)*100);
+  const [cl,cc]=confOf(P.eff);
+  const formTxt=S.form||(S.fam?S.fam+' family':'any formation');
+  const top=P.plays[0];
+  const L=Math.round((P.dir.L||0)*100), R=100-L;
+  const rows=P.sc.slice(0,10).map(({r,w})=>`<tr><td>${r.opp} Q${r.qtr??''}</td><td class="m">${ord(r.dn)}&amp;${r.dist}</td><td class="m">${spotLabel(r._y)}</td><td>${r.form}</td><td><span class="tag ${r.type}">${r.type==='Run'?'R':'P'}</span> ${r.play}</td><td class="m">${r.gain>0?'+':''}${r.gain??0}</td></tr>`).join('');
+  $('read').innerHTML=`
+    <div class="callout">
+      <div class="sit">${ord(S.dn)} &amp; ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${HASHN[S.hash]} · ${formTxt}${S.pers?' · '+S.pers+' pers':''}</div>
+      <div class="big"><span class="pct" style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</span><span class="what">${lean}</span></div>
+      <div class="split" aria-label="Run ${Math.round(run*100)} percent, pass ${Math.round(pass*100)} percent">
+        <div class="r" style="width:${run*100}%">RUN ${Math.round(run*100)}%</div>
+        <div class="p" style="width:${pass*100}%">PASS ${Math.round(pass*100)}%</div>
+      </div>
+      <div class="conf"><span class="dot" style="background:${cc}"></span>${cl} confidence <span class="note">· built on ~${Math.round(P.eff)} similar plays, ${P.exact.length} near-exact matches</span></div>
+    </div>
+    <div>
+      <p class="lbl">Most likely plays</p>
+      <div class="plays">${P.plays.map(x=>`<div class="pl"><div class="nm"><span class="tag ${x.t}">${x.t==='Run'?'RUN':'PASS'}</span><span>${x.p}</span></div><div class="v">${Math.round(x.v*100)}%</div><div class="bar"><i style="width:${Math.round(x.v/P.plays[0].v*100)}%"></i></div></div>`).join('')}</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>${L}% / ${R}%</b><span>Play goes left / right</span></div>
+      <div class="stat"><b>${P.gain>=0?'+':''}${P.gain.toFixed(1)}</b><span>Avg yards, similar plays</span></div>
+      <div class="stat"><b>${top?top.p:'—'}</b><span>Top call</span></div>
+    </div>
+    <div>
+      <p class="lbl">Closest plays on film</p>
+      <div class="tbl"><table><thead><tr><th>Game</th><th>D&amp;D</th><th>Spot</th><th>Form</th><th>Play</th><th>Yds</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
+}
+
+function update(){ renderControls(); drawSpot(); renderRead(); }
+
+/* ---------- data loading ---------- */
+const MAP={'DN':'dn','DIST':'dist','YARD LN':'yl','HASH':'hash','OFF FORM':'form','FORM FAMILY':'fam','PERSONNEL':'pers','PLAY TYPE':'type','OFF PLAY':'play','PLAY DIR':'dir','GN/LS':'gain','RESULT':'res','OPP TEAM':'opp','QTR':'qtr'};
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3500);}
+$('file').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    if(!window.XLSX) throw new Error('The spreadsheet reader did not load. Check your connection and try again.');
+    const wb=XLSX.read(await f.arrayBuffer());
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:null});
+    let team=null;
+    const rows=raw.filter(r=>!r.ODK||String(r.ODK).trim().toUpperCase()==='O').map(r=>{
+      const o={}; for(const k in MAP){let v=r[k]; if(typeof v==='string'){v=v.trim(); if(v==='')v=null;} o[MAP[k]]=v;}
+      ['dn','dist','yl','gain','qtr'].forEach(k=>{if(o[k]!=null&&o[k]!=='')o[k]=Number(o[k]);});
+      o.pers=o.pers!=null?String(o.pers):null;
+      o.opp=String(o.opp||'').replace(/ High School/i,'');
+      if(!team&&r.TEAM) team=String(r.TEAM).replace(/ High School/i,'');
+      return o;}).filter(o=>o.dn>=1&&o.dn<=4&&o.type&&o.play&&(o.type==='Run'||o.type==='Pass'));
+    if(rows.length<10) throw new Error('Found only '+rows.length+' usable offensive plays. The file needs DN, DIST, YARD LN, PLAY TYPE (Run/Pass) and OFF PLAY columns.');
+    DATA={team:team||f.name.replace(/\.[^.]+$/,''),rows};
+    try{localStorage.setItem('dpp-data',JSON.stringify(DATA));}catch(_){}
+    init(); toast('Loaded '+rows.length+' plays for '+DATA.team);
+  }catch(err){toast(err.message||'Could not read that file.');}
+  e.target.value='';
+};
+$('resetData').onclick=()=>{DATA=SAMPLE;try{localStorage.removeItem('dpp-data');}catch(_){} init(); toast('Back to the sample scouting data');};
+
+function init(){
+  prep(); S.form=null;S.fam=null;S.pers=null;
+  $('teamName').textContent=DATA.team;
+  const games=new Set(DATA.rows.map(r=>r.opp)).size;
+  $('dataInfo').textContent=DATA.rows.length+' plays · '+games+' game'+(games===1?'':'s');
+  $('resetData').hidden=DATA===SAMPLE;
+  drawField(); update();
+}
+init();
+</script>
+
+</body></html>
