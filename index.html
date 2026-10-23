@@ -95,6 +95,44 @@ td.m{font-family:var(--mono);font-size:12px}
 .note{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0}
 .empty{padding:20px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);text-align:center}
 #toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px}
+/* pinned read bar for phones/tablets */
+.readbar{display:none}
+@media (max-width:900px){
+  .readbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;
+    position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--panel);
+    border:1px solid var(--line);border-bottom:3px solid var(--red);border-radius:10px;padding:10px 12px;
+    box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--bg)}
+  .rb-big{display:flex;flex-direction:column;line-height:.9}
+  .rb-big b{font:800 38px var(--display)}
+  .rb-big span{font:800 15px var(--display);text-transform:uppercase;letter-spacing:.06em}
+  .rb-mid{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .rb-mid .split{height:18px}
+  .rb-mid .split div{font-size:11px;padding:0 6px}
+  .rb-plays{font:600 13px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rb-plays em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .rb-meta{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)}
+  .rb-go{font:700 12px var(--display);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:8px 9px;cursor:pointer;line-height:1.1}
+}
+@media (max-width:560px){
+  body{padding-block:8px 28px}
+  .wrap{gap:10px}
+  .brand h1{font-size:23px}
+  .vs{font-size:14px}
+  .datactl .btn{padding:6px 9px;font-size:11px}
+  .panel{padding:12px;gap:12px}
+  .spot{font-size:22px}
+  .step{min-width:40px;height:36px}
+  .downs .chip{font-size:19px;min-width:0;flex:1}
+  .downs{flex-wrap:nowrap}
+  .scroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin-inline:-12px;padding-inline:12px;padding-bottom:2px}
+  .scroll::-webkit-scrollbar{display:none}
+  .scroll .chip{flex:none}
+  .big .pct{font-size:52px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat.top{grid-column:1/-1}
+  .hashline{flex-wrap:wrap}
+}
 @media (prefers-reduced-motion:reduce){.split div{transition:none}}
 </style>
 
@@ -113,6 +151,7 @@ td.m{font-family:var(--mono);font-size:12px}
     </div>
   </header>
 
+  <div class="readbar" id="readbar" aria-live="polite"></div>
   <div class="grid">
     <section class="panel" aria-label="Situation">
       <div>
@@ -141,24 +180,24 @@ td.m{font-family:var(--mono);font-size:12px}
             <button class="step" id="dMinus" aria-label="Less distance">−</button>
             <output id="distOut">10</output>
             <button class="step" id="dPlus" aria-label="More distance">+</button>
-            <div class="chips" id="distChips"></div>
+            <div class="chips scroll" id="distChips"></div>
           </div>
         </div>
       </div>
 
       <div>
         <p class="lbl">Formation</p>
-        <div class="chips" id="formChips"></div>
+        <div class="chips scroll" id="formChips"></div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="formSel" aria-label="All formations"></select>
           <span class="note">Not sure of the exact call? Pick the family instead:</span>
         </div>
-        <div class="chips" id="famChips" style="margin-top:8px"></div>
+        <div class="chips scroll" id="famChips" style="margin-top:8px"></div>
       </div>
 
       <div>
         <p class="lbl">Personnel (optional)</p>
-        <div class="chips" id="persChips"></div>
+        <div class="chips scroll" id="persChips"></div>
       </div>
     </section>
 
@@ -283,6 +322,15 @@ function renderRead(){
   const top=P.plays[0];
   const L=Math.round((P.dir.L||0)*100), R=100-L;
   const rows=P.sc.slice(0,10).map(({r,w})=>`<tr><td>${r.opp} Q${r.qtr??''}</td><td class="m">${ord(r.dn)}&amp;${r.dist}</td><td class="m">${spotLabel(r._y)}</td><td>${r.form}</td><td><span class="tag ${r.type}">${r.type==='Run'?'R':'P'}</span> ${r.play}</td><td class="m">${r.gain>0?'+':''}${r.gain??0}</td></tr>`).join('');
+  $('readbar').innerHTML=`
+    <div class="rb-big"><b style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</b><span>${lean}</span></div>
+    <div class="rb-mid">
+      <div class="split"><div class="r" style="width:${run*100}%">R ${Math.round(run*100)}</div><div class="p" style="width:${pass*100}%">P ${Math.round(pass*100)}</div></div>
+      <div class="rb-plays">${P.plays.slice(0,3).map(x=>`${x.p} <em>${Math.round(x.v*100)}%</em>`).join(' · ')}</div>
+      <div class="rb-meta"><span class="dot" style="background:${cc}"></span>${cl} · ${ord(S.dn)}&amp;${S.dist>=S.ytg?'G':S.dist} ${spotLabel(S.ytg)}</div>
+    </div>
+    <button class="rb-go" type="button" id="rbGo">Full<br>read</button>`;
+  $('rbGo').onclick=()=>{const y=$('read').getBoundingClientRect().top+scrollY-($('readbar').offsetHeight+16);window.scrollTo({top:y,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
   $('read').innerHTML=`
     <div class="callout">
       <div class="sit">${ord(S.dn)} &amp; ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${HASHN[S.hash]} · ${formTxt}${S.pers?' · '+S.pers+' pers':''}</div>
@@ -298,9 +346,9 @@ function renderRead(){
       <div class="plays">${P.plays.map(x=>`<div class="pl"><div class="nm"><span class="tag ${x.t}">${x.t==='Run'?'RUN':'PASS'}</span><span>${x.p}</span></div><div class="v">${Math.round(x.v*100)}%</div><div class="bar"><i style="width:${Math.round(x.v/P.plays[0].v*100)}%"></i></div></div>`).join('')}</div>
     </div>
     <div class="stats">
-      <div class="stat"><b>${L}% / ${R}%</b><span>Play goes left / right</span></div>
+      <div class="stat"><b>L ${L} · R ${R}</b><span>Direction, % of similar plays</span></div>
       <div class="stat"><b>${P.gain>=0?'+':''}${P.gain.toFixed(1)}</b><span>Avg yards, similar plays</span></div>
-      <div class="stat"><b>${top?top.p:'—'}</b><span>Top call</span></div>
+      <div class="stat top"><b>${top?top.p:'—'}</b><span>Top call</span></div>
     </div>
     <div>
       <p class="lbl">Closest plays on film</p>
