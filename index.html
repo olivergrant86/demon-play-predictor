@@ -4,7 +4,15 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="xlsx.full.min.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#c8102e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Play Predictor">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <style>
 /* Layout: press-box console — field on top as the input surface, situation controls below it, scouting read on the right (stacks on phones). */
 :root{
@@ -25,6 +33,7 @@
   --red:#e0243f; --red-ink:#ffffff; --redsoft:#3a1b20; --run:#e0243f; --pass:#f4eeef;
   --turf:#24512f; --turf2:#204a2b; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 32px}
 .wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
@@ -133,6 +142,55 @@ td.m{font-family:var(--mono);font-size:12px}
   .stat.top{grid-column:1/-1}
   .hashline{flex-wrap:wrap}
 }
+.btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
+.btn-red:hover{border-color:var(--ink)}
+.pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
+.tip{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;gap:8px;align-items:center;background:var(--ink);color:var(--bg);padding:10px 12px;border-radius:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.tip span{flex:1;min-width:0}
+.tip .btn{background:transparent;color:var(--bg);border-color:rgba(127,127,127,.5)}
+/* Sideline mode: deliberately single-theme, max contrast for glare and distance */
+.side{position:fixed;inset:0;z-index:50;background:#000;color:#fff;display:flex;flex-direction:column;gap:10px;overflow:auto;
+  padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.s-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.s-sit{font:800 clamp(18px,4.6vw,30px) var(--display);text-transform:uppercase;letter-spacing:.04em}
+.s-btn{font:800 20px var(--display);min-width:56px;min-height:52px;padding:0 14px;background:#1b1b1b;color:#fff;border:2px solid #444;border-radius:10px;cursor:pointer}
+.s-btn[aria-pressed="true"]{background:#ff2a45;border-color:#ff2a45}
+.s-btn:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.s-main{flex:1;display:flex;flex-direction:column;justify-content:center;gap:clamp(10px,2.5vh,22px);min-height:0}
+.s-lean{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;line-height:.85}
+.s-lean b{font:800 clamp(110px,34vw,260px) var(--display)}
+.s-lean span{font:800 clamp(52px,15vw,120px) var(--display);text-transform:uppercase}
+.s-split{display:flex;height:clamp(34px,6vh,54px);border-radius:8px;overflow:hidden;border:2px solid #fff}
+.s-split div{display:flex;align-items:center;padding:0 12px;font:800 clamp(16px,4vw,26px) var(--display);white-space:nowrap;overflow:hidden}
+.s-split .r{background:#ff2a45;color:#fff}
+.s-split .p{background:#fff;color:#000;justify-content:flex-end}
+.s-call{display:flex;flex-direction:column;gap:2px}
+.s-lbl{font:700 14px var(--display);letter-spacing:.16em;text-transform:uppercase;color:#bbb}
+.s-call b{font:800 clamp(40px,11vw,84px)/1 var(--display);text-transform:uppercase}
+.s-call #sNext{font:700 clamp(18px,4.6vw,30px) var(--display);color:#ccc;text-transform:uppercase}
+.s-conf{font:600 16px var(--body);color:#ccc;display:flex;align-items:center;gap:8px}
+.s-ctl{display:flex;flex-wrap:wrap;gap:10px;border-top:2px solid #333;padding-top:10px}
+.s-grp{display:flex;align-items:center;gap:6px}
+.s-wide{flex:1;min-width:180px}
+.s-wide select{width:100%;min-height:52px;font:700 18px var(--body);background:#1b1b1b;color:#fff;border:2px solid #444;border-radius:10px}
+.s-val{font:800 26px var(--display);min-width:64px;text-align:center;white-space:nowrap}
+.s-cap{font:700 12px var(--display);color:#999;text-transform:uppercase;letter-spacing:.1em}
+@media (orientation:landscape) and (max-height:520px){
+  .side{gap:6px}
+  .s-sit{font-size:clamp(16px,5vh,24px)}
+  .s-btn{min-height:44px;min-width:48px;font-size:18px}
+  .s-main{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto auto;align-items:center;column-gap:28px;row-gap:6px;min-height:auto}
+  .s-lean{grid-row:1/4;flex-direction:column;align-items:flex-start;gap:4px}
+  .s-lean b{font-size:clamp(70px,24vh,180px)}
+  .s-lean span{font-size:clamp(34px,11vh,80px)}
+  .s-split{height:clamp(28px,8vh,44px)}
+  .s-call b{font-size:clamp(34px,12vh,80px)}
+  .s-call #sNext{font-size:clamp(15px,5vh,24px)}
+  .s-conf{display:none}
+  .s-ctl{flex-wrap:nowrap;overflow-x:auto;padding-top:6px;gap:8px}
+  .s-wide{min-width:150px}
+  .s-wide select{min-height:44px;font-size:16px}
+}
 @media (prefers-reduced-motion:reduce){.split div{transition:none}}
 </style>
 
@@ -148,6 +206,8 @@ td.m{font-family:var(--mono);font-size:12px}
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <button class="btn" id="resetData" hidden>Use sample data</button>
       <button class="btn" id="clearSit">Clear situation</button>
+      <button class="btn btn-red" id="sideBtn">Sideline mode</button>
+      <span class="pill" id="net" hidden>Offline · still working</span>
     </div>
   </header>
 
@@ -204,6 +264,26 @@ td.m{font-family:var(--mono);font-size:12px}
     <section class="panel" aria-label="Prediction" id="read"></section>
   </div>
   <p class="note">How it works: every play in the scouting data is scored for how closely it matches the current down, distance, field position, hash, formation and personnel. Closer matches count more. The read shows what this offense called in the most similar spots. It is a tendency, not a guarantee.</p>
+</div>
+<div class="tip" id="installTip" hidden>
+  <span id="installTxt">Use it without Wi-Fi: tap <b>Share</b>, then <b>Add to Home Screen</b>.</span>
+  <button class="btn" id="installBtn" hidden>Install app</button>
+  <button class="btn" id="tipX" aria-label="Dismiss">✕</button>
+</div>
+<div class="side" id="side" hidden role="dialog" aria-label="Sideline mode">
+  <div class="s-top"><span class="s-sit" id="sSit"></span><button class="s-btn" id="sExit">Exit</button></div>
+  <div class="s-main">
+    <div class="s-lean"><b id="sPct"></b><span id="sWhat"></span></div>
+    <div class="s-split"><div class="r" id="sRun"></div><div class="p" id="sPass"></div></div>
+    <div class="s-call"><span class="s-lbl">Top call</span><b id="sTop"></b><span id="sNext"></span></div>
+    <div class="s-conf" id="sConf"></div>
+  </div>
+  <div class="s-ctl">
+    <div class="s-grp" id="sDowns"></div>
+    <div class="s-grp"><button class="s-btn" data-sd="-1">−</button><span class="s-val" id="sDist"></span><button class="s-btn" data-sd="1">+</button><span class="s-cap">dist</span></div>
+    <div class="s-grp"><button class="s-btn" data-sy="-5">−5</button><span class="s-val" id="sSpot"></span><button class="s-btn" data-sy="5">+5</button></div>
+    <div class="s-grp s-wide"><select id="sForm" aria-label="Formation"></select></div>
+  </div>
 </div>
 <div id="toast" hidden></div>
 
@@ -322,6 +402,7 @@ function renderRead(){
   const top=P.plays[0];
   const L=Math.round((P.dir.L||0)*100), R=100-L;
   const rows=P.sc.slice(0,10).map(({r,w})=>`<tr><td>${r.opp} Q${r.qtr??''}</td><td class="m">${ord(r.dn)}&amp;${r.dist}</td><td class="m">${spotLabel(r._y)}</td><td>${r.form}</td><td><span class="tag ${r.type}">${r.type==='Run'?'R':'P'}</span> ${r.play}</td><td class="m">${r.gain>0?'+':''}${r.gain??0}</td></tr>`).join('');
+  renderSide({lean,lp,run,pass,P,cl,cc,formTxt});
   $('readbar').innerHTML=`
     <div class="rb-big"><b style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</b><span>${lean}</span></div>
     <div class="rb-mid">
@@ -358,6 +439,68 @@ function renderRead(){
 
 function update(){ renderControls(); drawSpot(); renderRead(); }
 
+/* ---------- sideline mode ---------- */
+let wake=null;
+async function keepAwake(){ try{ if(!$('side').hidden && navigator.wakeLock) wake=await navigator.wakeLock.request('screen'); }catch(_){} }
+function openSide(on){
+  $('side').hidden=!on; document.documentElement.style.overflow=on?'hidden':'';
+  try{localStorage.setItem('dpp-side',on?'1':'');}catch(_){}
+  if(on){ keepAwake(); renderRead(); } else { try{wake&&wake.release();}catch(_){} wake=null; }
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') keepAwake(); });
+$('sideBtn').onclick=()=>openSide(true);
+$('sExit').onclick=()=>openSide(false);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('side').hidden) openSide(false); });
+document.querySelectorAll('[data-sd]').forEach(b=>b.onclick=()=>{S.dist=Math.min(40,Math.max(1,S.dist+(+b.dataset.sd)));update();});
+document.querySelectorAll('[data-sy]').forEach(b=>b.onclick=()=>{S.ytg=Math.min(99,Math.max(1,S.ytg-(+b.dataset.sy)));update();});
+$('sForm').onchange=e=>{const v=e.target.value; if(v.startsWith('fam:')){S.fam=v.slice(4);S.form=null;} else {S.form=v||null;S.fam=null;} update();};
+function renderSide(o){
+  if($('side').hidden) return;
+  const {lean,lp,run,pass,P,cl,cc,formTxt}=o;
+  $('sSit').textContent=`${ord(S.dn)} & ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${formTxt}`;
+  $('sPct').textContent=lp+'%'; $('sPct').style.color=lean==='Run'?'#ff2a45':'#fff';
+  $('sWhat').textContent=lean;
+  const r=Math.round(run*100), p=100-r;
+  $('sRun').style.width=r+'%'; $('sRun').textContent=r>=12?'RUN '+r:'';
+  $('sPass').style.width=p+'%'; $('sPass').textContent=p>=12?'PASS '+p:'';
+  $('sTop').textContent=P.plays[0]?P.plays[0].p:'—';
+  $('sNext').textContent=P.plays.slice(1,3).map(x=>x.p+' '+Math.round(x.v*100)+'%').join('  ·  ');
+  $('sConf').innerHTML=`<span class="dot" style="background:${cc};width:14px;height:14px"></span>${cl} confidence · ~${Math.round(P.eff)} similar plays`;
+  $('sDowns').innerHTML=[1,2,3,4].map(d=>`<button class="s-btn" data-dn="${d}" aria-pressed="${S.dn===d}">${ord(d)}</button>`).join('');
+  $('sDowns').querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>{S.dn=+b.dataset.dn;update();});
+  $('sDist').textContent=S.dist>=S.ytg?'G':S.dist;
+  $('sSpot').textContent=spotLabel(S.ytg);
+  const fc=counts('form'), fam=counts('fam');
+  $('sForm').innerHTML='<option value="">Any formation</option>'+
+    '<optgroup label="Formations">'+fc.map(([f])=>`<option value="${f}" ${S.form===f?'selected':''}>${f}</option>`).join('')+'</optgroup>'+
+    '<optgroup label="Families">'+fam.map(([f])=>`<option value="fam:${f}" ${!S.form&&S.fam===f?'selected':''}>${f} family</option>`).join('')+'</optgroup>';
+}
+
+/* ---------- offline + install ---------- */
+const PWA=true;
+function netState(){ $('net').hidden=navigator.onLine!==false; }
+addEventListener('online',netState); addEventListener('offline',netState); netState();
+if(PWA && 'serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    reg.addEventListener('updatefound',()=>{const w=reg.installing; w&&w.addEventListener('statechange',()=>{
+      if(w.state==='activated'){ try{ if(!localStorage.getItem('dpp-offline')){localStorage.setItem('dpp-offline','1');toast('Saved for offline use. It will work without Wi-Fi.');} }catch(_){} }});});
+  }).catch(()=>{});
+}
+(function installTip(){
+  if(!PWA) return;
+  const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  let dismissed=false; try{dismissed=!!localStorage.getItem('dpp-tipx');}catch(_){}
+  if(standalone||dismissed) return;
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ios) $('installTip').hidden=false;
+  let deferred=null;
+  addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;
+    $('installTxt').textContent='Install it on this device so it works without Wi-Fi.';
+    $('installBtn').hidden=false;$('installTip').hidden=false;});
+  $('installBtn').onclick=async()=>{ if(!deferred) return; deferred.prompt(); try{await deferred.userChoice;}catch(_){} deferred=null; $('installTip').hidden=true; };
+  $('tipX').onclick=()=>{ $('installTip').hidden=true; try{localStorage.setItem('dpp-tipx','1');}catch(_){} };
+})();
+
 /* ---------- data loading ---------- */
 const MAP={'DN':'dn','DIST':'dist','YARD LN':'yl','HASH':'hash','OFF FORM':'form','FORM FAMILY':'fam','PERSONNEL':'pers','PLAY TYPE':'type','OFF PLAY':'play','PLAY DIR':'dir','GN/LS':'gain','RESULT':'res','OPP TEAM':'opp','QTR':'qtr'};
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3500);}
@@ -393,6 +536,7 @@ function init(){
   drawField(); update();
 }
 init();
+try{ if(localStorage.getItem('dpp-side')) openSide(true); }catch(_){}
 </script>
 
 </body></html>
