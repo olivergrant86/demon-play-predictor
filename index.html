@@ -167,6 +167,7 @@ td.m{font-family:var(--mono);font-size:12px}
 .s-btn{font:800 20px var(--display);min-width:56px;min-height:52px;padding:0 14px;background:#1b1b1b;color:#fff;border:2px solid #444;border-radius:10px;cursor:pointer}
 .s-btn[aria-pressed="true"]{background:#ff2a45;border-color:#ff2a45}
 .s-btn:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.s-main>*{flex-shrink:0}
 .s-main{flex:1;display:flex;flex-direction:column;justify-content:center;gap:clamp(10px,2.5vh,22px);min-height:0}
 .s-lean{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;line-height:.85}
 .s-lean b{font:800 clamp(110px,34vw,260px) var(--display)}
@@ -311,12 +312,6 @@ td.m{font-family:var(--mono);font-size:12px}
     <div class="s-split"><div class="r" id="sRun"></div><div class="p" id="sPass"></div></div>
     <div class="s-call"><span class="s-lbl">Top call</span><b id="sTop"></b><span id="sNext"></span></div>
     <div class="s-conf" id="sConf"></div>
-  </div>
-  <div class="s-ctl">
-    <div class="s-grp" id="sDowns"></div>
-    <div class="s-grp"><button class="s-btn" data-sd="-1">−</button><span class="s-val" id="sDist"></span><button class="s-btn" data-sd="1">+</button><span class="s-cap">dist</span></div>
-    <div class="s-grp"><button class="s-btn" data-sy="-5">−5</button><span class="s-val" id="sSpot"></span><button class="s-btn" data-sy="5">+5</button></div>
-    <div class="s-grp s-wide"><select id="sForm" aria-label="Formation"></select></div>
   </div>
 </div>
 <div id="toast" hidden></div>
@@ -485,9 +480,6 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 $('sideBtn').onclick=()=>openSide(true);
 $('sExit').onclick=()=>openSide(false);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('side').hidden) openSide(false); });
-document.querySelectorAll('[data-sd]').forEach(b=>b.onclick=()=>{S.dist=Math.min(40,Math.max(1,S.dist+(+b.dataset.sd)));update();});
-document.querySelectorAll('[data-sy]').forEach(b=>b.onclick=()=>{S.ytg=Math.min(99,Math.max(1,S.ytg-(+b.dataset.sy)));update();});
-$('sForm').onchange=e=>{const v=e.target.value; if(v.startsWith('fam:')){S.fam=v.slice(4);S.form=null;} else {S.form=v||null;S.fam=null;} update();};
 function renderSide(o){
   if($('side').hidden) return;
   const {lean,lp,run,pass,P,cl,cc,formTxt}=o;
@@ -503,14 +495,6 @@ function renderSide(o){
   $('sTop').textContent=mine[0]?mine[0].p:'—';
   $('sNext').textContent=[mine[1]&&(mine[1].p+' '+Math.round(mine[1].v*100)+'%'),theirs[0]&&('Top '+other.toLowerCase()+': '+theirs[0].p)].filter(Boolean).join('  ·  ');
   $('sConf').innerHTML=`<span class="dot" style="background:${cc};width:14px;height:14px"></span>${cl} confidence · ~${Math.round(P.eff)} similar plays`;
-  $('sDowns').innerHTML=[1,2,3,4].map(d=>`<button class="s-btn" data-dn="${d}" aria-pressed="${S.dn===d}">${ord(d)}</button>`).join('');
-  $('sDowns').querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>{S.dn=+b.dataset.dn;update();});
-  $('sDist').textContent=S.dist>=S.ytg?'G':S.dist;
-  $('sSpot').textContent=spotLabel(S.ytg);
-  const fc=counts('form'), fam=counts('fam');
-  $('sForm').innerHTML='<option value="">Any formation</option>'+
-    '<optgroup label="Formations">'+fc.map(([f])=>`<option value="${f}" ${S.form===f?'selected':''}>${f}</option>`).join('')+'</optgroup>'+
-    '<optgroup label="Families">'+fam.map(([f])=>`<option value="fam:${f}" ${!S.form&&S.fam===f?'selected':''}>${f} family</option>`).join('')+'</optgroup>';
 }
 
 /* ---------- staff sync (Firebase Realtime Database over REST) ---------- */
