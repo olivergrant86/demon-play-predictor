@@ -221,6 +221,20 @@ td.m{font-family:var(--mono);font-size:12px}
 .plan-row .pr-a{display:flex;gap:6px}
 .plan-row .pr-a .btn{padding:6px 9px;font-size:11px}
 @media (max-width:560px){.plan-row{grid-template-columns:1fr}.plan-row .pr-a{justify-content:flex-start}}
+.btn-ink{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.pbbar{display:none}
+.pb .pbbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:env(safe-area-inset-top,0px);z-index:22;background:var(--ink);color:var(--bg);border-radius:10px;padding:8px 10px}
+.pb .pbbar .btn{background:transparent;color:var(--bg);border-color:rgba(127,127,127,.55);padding:6px 10px;font-size:12px}
+.pb-tag{font:800 18px var(--display);text-transform:uppercase;letter-spacing:.06em;color:#ff4d63}
+.pb-team{font:700 14px var(--display);text-transform:uppercase;letter-spacing:.06em;opacity:.85;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-sync{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.06em;color:#5fd38a}
+.pb-sync.warn{color:#f5c400}
+.pb-sync.off{color:inherit;opacity:.6}
+@media (max-width:900px){ .pb .pbbar{position:static} .pb .readbar{top:env(safe-area-inset-top,0px)} .pb-team{display:none} .pb-sync{flex:1} }
+.pb header,.pb .pb-hide{display:none}
+.pb body{padding-block:8px 20px}
+.pb .wrap{gap:10px}
+.pb .panel{gap:12px}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -268,6 +282,13 @@ td.m{font-family:var(--mono);font-size:12px}
 
 </head><body>
 <div class="wrap">
+  <div class="pbbar" id="pbBar">
+    <span class="pb-tag">Press box</span>
+    <span class="pb-team" id="pbTeam"></span>
+    <span class="pb-sync" id="pbSync"></span>
+    <button class="btn" id="pbPlan" type="button">Game plan</button>
+    <button class="btn" id="pbExit" type="button">Exit press box</button>
+  </div>
   <header>
     <div class="brand">
       <h1>Demon <span>Play</span> Predictor</h1>
@@ -278,6 +299,7 @@ td.m{font-family:var(--mono);font-size:12px}
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <button class="btn" id="resetData" hidden>Use sample data</button>
       <button class="btn" id="clearSit">Clear situation</button>
+      <button class="btn btn-ink" id="pbBtn">Press box mode</button>
       <button class="btn" id="planBtn">Game plan</button>
       <button class="btn" id="syncBtn" hidden>Staff sync</button>
       <button class="btn btn-red" id="sideBtn">Sideline mode</button>
@@ -325,7 +347,7 @@ td.m{font-family:var(--mono);font-size:12px}
   <div class="readbar" id="readbar" aria-live="polite"></div>
   <div class="grid">
     <section class="panel" aria-label="Situation">
-      <div>
+      <div class="pb-hide">
         <p class="lbl">Ball spot &amp; hash — tap the field</p>
         <div class="field-wrap" id="fieldWrap"><svg id="field" viewBox="0 0 1200 533" role="img" aria-label="Football field. Tap to place the ball."></svg></div>
       </div>
@@ -362,7 +384,7 @@ td.m{font-family:var(--mono);font-size:12px}
 
       <div>
         <div class="fg-top"><p class="lbl" style="margin:0">Formation</p><span class="fg-cur" id="formCur"></span></div>
-        <p class="note" style="margin:4px 0 8px">Tap the family, then the exact formation if you know it.</p>
+        <p class="note pb-hide" style="margin:4px 0 8px">Tap the family, then the exact formation if you know it.</p>
         <div class="fgroups" id="formGroups"></div>
       </div>
 
@@ -374,7 +396,7 @@ td.m{font-family:var(--mono);font-size:12px}
 
     <section class="panel" aria-label="Prediction" id="read"></section>
   </div>
-  <p class="note">How it works: every play in the scouting data is scored for how closely it matches the current down, distance, field position, hash, formation and personnel. Closer matches count more. The read shows what this offense called in the most similar spots. It is a tendency, not a guarantee.</p>
+  <p class="note pb-hide">How it works: every play in the scouting data is scored for how closely it matches the current down, distance, field position, hash, formation and personnel. Closer matches count more. The read shows what this offense called in the most similar spots. It is a tendency, not a guarantee.</p>
 </div>
 <div class="tip" id="installTip" hidden>
   <span id="installTxt">Use it without Wi-Fi: tap <b>Share</b>, then <b>Add to Home Screen</b>.</span>
@@ -611,6 +633,18 @@ function renderRead(){
 
 function update(){ renderControls(); drawSpot(); renderRead(); if(typeof yardUI==='function') yardUI(); if(typeof renderPlanList==='function' && !$('planPanel').hidden) renderPlanList(); if(typeof publish==='function') publish(); }
 
+/* ---------- press box mode ---------- */
+function pressBox(on){
+  document.documentElement.classList.toggle('pb',on);
+  try{ localStorage.setItem('dpp-pb',on?'1':''); }catch(_){}
+  $('pbTeam').textContent=DATA.team?'Scouting '+DATA.team:'';
+  if(on) scrollTo({top:0});
+}
+$('pbBtn').onclick=()=>pressBox(true);
+$('pbExit').onclick=()=>pressBox(false);
+$('pbPlan').onclick=()=>$('planBtn').click();
+try{ if(localStorage.getItem('dpp-pb')) pressBox(true); }catch(_){}
+
 /* ---------- sideline mode ---------- */
 let wake=null;
 async function keepAwake(){ try{ if(!$('side').hidden && navigator.wakeLock) wake=await navigator.wakeLock.request('screen'); }catch(_){} }
@@ -773,6 +807,9 @@ function syncUI(){
   const mismatch=last && last.team && last.team!==DATA.team;
   const pill=$('syncPill');
   pill.hidden=!room;
+  $('pbSync').textContent=room?(live&&!sendErr?'● Live · room '+room:'Sync paused · room '+room):'Not synced';
+  $('pbSync').classList.toggle('warn',!!room&&(!live||sendErr));
+  $('pbSync').classList.toggle('off',!room);
   if(room){ pill.textContent=live&&!sendErr?(mismatch?'Room '+room+' · different team':'Live · '+room):'Sync paused · '+room; pill.classList.toggle('warn',!live||sendErr||!!mismatch); }
   $('syncOff').hidden=!!room; $('syncOn').hidden=!room;
   $('roomCode').textContent=room||'';
