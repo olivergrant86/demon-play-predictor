@@ -235,6 +235,11 @@ td.m{font-family:var(--mono);font-size:12px}
 .pb body{padding-block:8px 20px}
 .pb .wrap{gap:10px}
 .pb .panel{gap:12px}
+.pbwide .wrap{max-width:none}
+.pbwide .grid{grid-template-columns:auto minmax(0,1.3fr) minmax(0,1fr)}
+.pbfield{position:sticky;top:calc(env(safe-area-inset-top,0px) + 58px);padding:10px;gap:6px;align-self:start}
+.pbfield .lbl{margin:0}
+.pbfield .field-wrap{width:min(320px,calc((100vh - 120px) * 0.444))}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -424,23 +429,29 @@ function prep(){ DATA.rows.forEach(r=>{r._y=ytgOf(r.yl); r.form=r.form||'(none)'
 
 /* ---------- field ---------- */
 const NS='http://www.w3.org/2000/svg';
-function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||field).appendChild(e);return e;}
+let FG=null, VERT=false;
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||FG||field).appendChild(e);return e;}
 const field=$('field');
 const X=y=>100+(100-y)*10; // yards-to-goal -> x
 const HY={L:178,M:266,R:355};
 function drawField(){
-  field.innerHTML='';
+  field.innerHTML=''; FG=null;
+  // Vertical field (press box, wide screens): same drawing, turned so the offense drives up the screen.
+  field.setAttribute('viewBox',VERT?'0 0 533 1200':'0 0 1200 533');
+  field.setAttribute('aria-label',VERT?'Football field, offense driving up. Tap to place the ball.':'Football field. Tap to place the ball.');
+  FG=el('g',{transform:VERT?'translate(0 1200) rotate(-90)':''},field);
+  const TR=VERT?90:0;
   for(let i=0;i<10;i++) el('rect',{x:100+i*100,y:0,width:100,height:533,fill:i%2?'var(--turf2)':'var(--turf)'});
   el('rect',{x:0,y:0,width:100,height:533,fill:'#1a1415'});
   el('rect',{x:1100,y:0,width:100,height:533,fill:'var(--red)'});
-  const t1=el('text',{x:50,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:'rotate(-90 50 266)','letter-spacing':6});t1.textContent=(DATA.team||'OFFENSE').toUpperCase().slice(0,14);
-  const t2=el('text',{x:1150,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:'rotate(90 1150 266)','letter-spacing':6});t2.textContent='DEMONS';
+  const t1=el('text',{x:50,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${VERT?90:-90} 50 266)`,'letter-spacing':6});t1.textContent=(DATA.team||'OFFENSE').toUpperCase().slice(0,14);
+  const t2=el('text',{x:1150,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(90 1150 266)`,'letter-spacing':6});t2.textContent='DEMONS';
   for(let yd=0;yd<=100;yd+=5){const x=100+yd*10; el('line',{x1:x,y1:0,x2:x,y2:533,stroke:'var(--chalk)','stroke-width':yd%50===0?4:2});}
   for(let yd=1;yd<100;yd++){ if(yd%5===0) continue; const x=100+yd*10;
     [[0,12],[521,533],[170,186],[347,363]].forEach(([a,b])=>el('line',{x1:x,y1:a,x2:x,y2:b,stroke:'var(--chalk)','stroke-width':2}));}
   for(let yd=10;yd<=90;yd+=10){const n=yd<=50?yd:100-yd; const x=100+yd*10;
-    [[60,0],[473,180]].forEach(([y,r])=>{const t=el('text',{x,y,fill:'rgba(255,255,255,.75)','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':700,'font-size':40,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${r} ${x} ${y})`});t.textContent=n;});}
-  el('text',{x:600,y:520,fill:'rgba(255,255,255,.55)','font-family':'Barlow, sans-serif','font-size':16,'text-anchor':'middle'}).textContent='OFFENSE DRIVING THIS WAY  →';
+    [[60,0],[473,180]].forEach(([y,r])=>{const t=el('text',{x,y,fill:'rgba(255,255,255,.75)','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':700,'font-size':40,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${VERT?90:r} ${x} ${y})`});t.textContent=n;});}
+  if(!VERT) el('text',{x:600,y:520,fill:'rgba(255,255,255,.55)','font-family':'Barlow, sans-serif','font-size':16,'text-anchor':'middle'}).textContent='OFFENSE DRIVING THIS WAY  →';
   el('line',{id:'fd',x1:0,y1:0,x2:0,y2:533,stroke:'#f5c400','stroke-width':5,opacity:.9});
   el('line',{id:'los',x1:0,y1:0,x2:0,y2:533,stroke:'#5ab0ff','stroke-width':5,opacity:.9});
   el('ellipse',{id:'ball',cx:0,cy:0,rx:20,ry:12,fill:'#7a3b1d',stroke:'#fff','stroke-width':3});
@@ -454,7 +465,7 @@ function drawSpot(){
 }
 $('fieldWrap').addEventListener('click',e=>{
   const pt=field.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
-  const p=pt.matrixTransform(field.getScreenCTM().inverse());
+  const p=pt.matrixTransform((FG||field).getScreenCTM().inverse());
   const yd=Math.round((p.x-100)/10); S.ytg=Math.min(99,Math.max(1,100-yd));
   S.hash=p.y<222?'L':p.y>310?'R':'M';
   update();
@@ -634,8 +645,23 @@ function renderRead(){
 function update(){ renderControls(); drawSpot(); renderRead(); if(typeof yardUI==='function') yardUI(); if(typeof renderPlanList==='function' && !$('planPanel').hidden) renderPlanList(); if(typeof publish==='function') publish(); }
 
 /* ---------- press box mode ---------- */
+const fieldHome=$('fieldWrap').parentElement;
+function layoutField(){
+  const want=document.documentElement.classList.contains('pb')&&matchMedia('(min-width:1400px)').matches;
+  document.documentElement.classList.toggle('pbwide',want);
+  if(want!==VERT){
+    VERT=want;
+    if(VERT){ const a=document.createElement('aside'); a.className='panel pbfield'; a.id='pbField';
+      a.innerHTML='<p class="lbl">Tap the field · offense drives up</p>'; a.appendChild($('fieldWrap'));
+      document.querySelector('.grid').prepend(a); }
+    else { fieldHome.appendChild($('fieldWrap')); const a=$('pbField'); if(a) a.remove(); }
+    drawField(); drawSpot();
+  }
+}
+addEventListener('resize',layoutField);
 function pressBox(on){
   document.documentElement.classList.toggle('pb',on);
+  layoutField();
   try{ localStorage.setItem('dpp-pb',on?'1':''); }catch(_){}
   $('pbTeam').textContent=DATA.team?'Scouting '+DATA.team:'';
   if(on) scrollTo({top:0});
