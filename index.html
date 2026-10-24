@@ -256,6 +256,17 @@ td.m{font-family:var(--mono);font-size:12px}
   .hashcol{order:3;width:100%;grid-template-rows:none;grid-template-columns:repeat(3,1fr)}
   .hashcol .chip{min-height:48px;font-size:18px}
 }
+.s-acts{display:flex;gap:8px}
+.rc-list{display:flex;flex-direction:column;gap:8px}
+.rc{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.rc-i{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:800 20px var(--display);color:#fff}
+.rc.ok .rc-i{background:#2f8f4e}.rc.warn .rc-i{background:#d99a00;color:#111}.rc.bad .rc-i{background:var(--red)}
+.rc.bad{border-color:var(--red)}
+.rc-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rc-t b{font:800 18px var(--display);text-transform:uppercase;letter-spacing:.03em}
+.rc-t span{font-size:14px;color:var(--muted)}
+.rc-ok{color:#2f8f4e}.rc-warn{color:#b07a00}.rc-bad{color:var(--red)}
+@media (max-width:560px){.rc{grid-template-columns:34px minmax(0,1fr)}.rc .btn{grid-column:2;justify-self:start}}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -307,6 +318,8 @@ td.m{font-family:var(--mono);font-size:12px}
     <span class="pb-tag">Press box</span>
     <span class="pb-team" id="pbTeam"></span>
     <span class="pb-sync" id="pbSync"></span>
+    <button class="btn" id="pbReady" type="button">Ready check</button>
+    <button class="btn thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
     <button class="btn" id="pbPlan" type="button">Game plan</button>
     <button class="btn" id="pbExit" type="button">Exit press box</button>
   </div>
@@ -321,6 +334,8 @@ td.m{font-family:var(--mono);font-size:12px}
       <button class="btn" id="resetData" hidden>Use sample data</button>
       <button class="btn" id="clearSit">Clear situation</button>
       <button class="btn btn-ink" id="pbBtn">Press box mode</button>
+      <button class="btn" id="readyBtn">Ready check</button>
+      <button class="btn thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
       <button class="btn" id="planBtn">Game plan</button>
       <button class="btn" id="syncBtn" hidden>Staff sync</button>
       <button class="btn btn-red" id="sideBtn">Sideline mode</button>
@@ -329,6 +344,13 @@ td.m{font-family:var(--mono);font-size:12px}
     </div>
   </header>
 
+  <section class="panel readyp" id="readyPanel" hidden aria-label="Ready check">
+    <div class="sync-head">
+      <div><p class="lbl">Ready check</p><p class="note" id="readySum">Run this before kickoff on each device.</p></div>
+      <div class="pf-act"><button class="btn" id="readyRerun" type="button">Check again</button><button class="btn" id="readyClose" type="button">Close</button></div>
+    </div>
+    <div class="rc-list" id="readyList"></div>
+  </section>
   <section class="panel planp" id="planPanel" hidden aria-label="Game plan">
     <div class="sync-head">
       <div><p class="lbl">Game plan · <span id="planTeam"></span></p><p class="note">Enter your stunt and coverage calls for a formation or a whole family. When that formation is picked, your call shows at the top of the read on every device in your sync room.</p></div>
@@ -425,7 +447,7 @@ td.m{font-family:var(--mono);font-size:12px}
   <button class="btn" id="tipX" aria-label="Dismiss">✕</button>
 </div>
 <div class="side" id="side" hidden role="dialog" aria-label="Sideline mode">
-  <div class="s-top"><div><span class="s-live" id="sLive" hidden></span></div><button class="s-btn" id="sExit">Exit</button></div>
+  <div class="s-top"><div><span class="s-live" id="sLive" hidden></span></div><div class="s-acts"><button class="s-btn thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button><button class="s-btn" id="sExit">Exit</button></div></div>
   <div class="side-read" id="sBody"></div>
 </div>
 <div id="toast" hidden></div>
@@ -677,6 +699,61 @@ function renderRead(){
 
 function update(){ renderControls(); drawSpot(); renderRead(); if(typeof yardUI==='function') yardUI(); if(typeof renderPlanList==='function' && !$('planPanel').hidden) renderPlanList(); if(typeof publish==='function') publish(); }
 
+/* ---------- light / dark switch ---------- */
+function curTheme(){ const a=document.documentElement.getAttribute('data-theme'); return a||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'); }
+function themeUI(){ const dark=curTheme()==='dark'; document.querySelectorAll('[data-theme-btn] span').forEach(s=>s.textContent=dark?'Light':'Dark'); }
+function setTheme(th){ document.documentElement.setAttribute('data-theme',th); try{localStorage.setItem('dpp-theme',th);}catch(_){} themeUI(); }
+document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(curTheme()==='dark'?'light':'dark'));
+try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
+themeUI();
+
+/* ---------- ready check ---------- */
+function dataPrint(){ let g=0; DATA.rows.forEach(r=>g+=(r.gain||0)*1+(r.dn||0)); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g; }
+async function runReady(){
+  const host=$('readyList'); host.innerHTML='<p class="note">Checking…</p>';
+  const items=[];
+  const add=(st,title,detail,fix)=>items.push({st,title,detail,fix});
+  // 1. Scouting data
+  const games=new Set(DATA.rows.map(r=>r.opp)).size;
+  add(DATA.rows.length>=40?'ok':'warn','Scouting data loaded',`${DATA.team}: ${DATA.rows.length} plays from ${games} game${games===1?'':'s'}${DATA===SAMPLE?' (the built-in sample file)':''}.`+(DATA.rows.length<40?' That is thin; the reads will be weak.':''),DATA.rows.length>=40?null:['Load Hudl export',()=>$('file').click()]);
+  // 2. Offline copy
+  if(!PWA) add('warn','Works without Wi-Fi','Offline only works on your Vercel site, not this preview.',null);
+  else {
+    let saved=false; try{ saved=!!navigator.serviceWorker&&!!(await navigator.serviceWorker.getRegistration())&&(await caches.keys()).length>0; }catch(_){}
+    const home=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+    if(!saved) add('bad','Works without Wi-Fi','The offline copy is not saved yet. Open the site once with signal, wait 10 seconds, then check again.',null);
+    else add(home?'ok':'warn','Works without Wi-Fi',home?'Offline copy saved, and the app is opened from the home screen.':'Offline copy saved. For the most reliable offline use, open it from the home-screen icon (Share → Add to Home Screen).',null);
+  }
+  // 3. Game plan
+  const n=PLAN.calls.length, hasDefault=PLAN.calls.some(c=>c.target==='any');
+  if(!n) add('bad','Game plan loaded',`No calls entered for ${DATA.team}.`,['Open game plan',()=>{ $('readyPanel').hidden=true; $('planBtn').click(); }]);
+  else add(hasDefault?'ok':'warn','Game plan loaded',`${n} call${n===1?'':'s'} for ${DATA.team}.`+(hasDefault?'':' No "Any formation" default call, so some formations will show no call.'),hasDefault?null:['Add a default call',()=>{ $('readyPanel').hidden=true; $('planBtn').click(); }]);
+  // 4. Sync + same file
+  if(!DB) add('warn','Staff sync','Sync only works on your Vercel site.',null);
+  else if(!room) add('bad','Staff sync','This device is not in a sync room.',['Open staff sync',()=>{ $('readyPanel').hidden=true; $('syncBtn').click(); }]);
+  else {
+    const live=es&&es.readyState===1&&navigator.onLine!==false&&!sendErr;
+    add(live?'ok':'bad','Staff sync',live?`Live in room ${room} as the ${dev}.`:`Room ${room} is not connected. Check the signal on this device.`,live?null:['Open staff sync',()=>{ $('readyPanel').hidden=true; $('syncBtn').click(); }]);
+    await beat();
+    let peers=[]; try{ const r=await fetch(presUrl()); const d=await r.json(); peers=Object.entries(d||{}).map(([id,v])=>({id,...v})).filter(p=>Date.now()-(p.t||0)<120000); }catch(_){}
+    const others=peers.filter(p=>p.id!==ME);
+    if(!others.length) add('warn','Every device on the same Hudl file','No other device has checked in to this room in the last 2 minutes. Open the app on the other devices and join room '+room+'.',null);
+    else {
+      const mine=dataPrint(), bad=others.filter(p=>p.fp!==mine);
+      if(!bad.length) add('ok','Every device on the same Hudl file',`${others.length+1} devices in the room (${[dev].concat(others.map(p=>p.dev)).join(', ')}), all on ${DATA.team} · ${DATA.rows.length} plays.`,null);
+      else add('bad','Every device on the same Hudl file',bad.map(p=>`${p.dev} has ${p.team||'a different file'} · ${p.plays} plays`).join('; ')+`. This device has ${DATA.team} · ${DATA.rows.length} plays. Load the same Hudl file on every device.`,null);
+    }
+  }
+  const icon={ok:'✓',warn:'!',bad:'✕'};
+  host.innerHTML=items.map((x,i)=>`<div class="rc ${x.st}"><span class="rc-i" aria-hidden="true">${icon[x.st]}</span><div class="rc-t"><b>${x.title}</b><span>${x.detail}</span></div>${x.fix?`<button class="btn" type="button" data-fix="${i}">${x.fix[0]}</button>`:''}</div>`).join('');
+  host.querySelectorAll('[data-fix]').forEach(b=>b.onclick=items[+b.dataset.fix].fix[1]);
+  const bads=items.filter(x=>x.st==='bad').length, warns=items.filter(x=>x.st==='warn').length;
+  $('readySum').innerHTML=bads?`<b class="rc-bad">${bads} thing${bads===1?'':'s'} to fix before kickoff.</b>`:warns?`<b class="rc-warn">Ready, with ${warns} note${warns===1?'':'s'}.</b>`:'<b class="rc-ok">All set for kickoff.</b>';
+}
+function openReady(){ const p=$('readyPanel'); p.hidden=false; p.scrollIntoView({block:'nearest'}); runReady(); }
+$('readyBtn').onclick=openReady; $('pbReady').onclick=openReady;
+$('readyRerun').onclick=runReady; $('readyClose').onclick=()=>{ $('readyPanel').hidden=true; };
+
 /* ---------- press box mode ---------- */
 const fieldHome=$('fieldWrap').parentElement;
 function layoutField(){
@@ -851,10 +928,14 @@ function connect(){
   const refetch=()=>fetch(roomUrl()).then(r=>r.json()).then(handle).catch(()=>{});
   es.addEventListener('put',e=>{ try{ const m=JSON.parse(e.data); m.path==='/'?handle(m.data):refetch(); }catch(_){} });
   es.addEventListener('patch',refetch);
-  es.onopen=syncUI; es.onerror=syncUI;
+  es.onopen=()=>{ syncUI(); beat(); }; es.onerror=syncUI;
   syncUI();
 }
+const presUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_P.json';
+const presMe=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_P/'+ME+'.json';
+function beat(){ if(!DB||!room) return Promise.resolve(); return fetch(presMe(),{method:'PUT',body:JSON.stringify({dev,team:DATA.team||'',plays:DATA.rows.length,fp:dataPrint(),t:Date.now()})}).catch(()=>{}); }
 function setRoom(code){
+  if(!code && room && DB) fetch(presMe(),{method:'DELETE'}).catch(()=>{});
   room=code; try{ code?localStorage.setItem('dpp-room',code):localStorage.removeItem('dpp-room'); }catch(_){}
   if(!code && es){ es.close(); es=null; }
   connect();
@@ -897,6 +978,7 @@ if(DB){
   addEventListener('online',()=>{ if(room && (!es||es.readyState===2)) connect(); else syncUI(); });
   addEventListener('offline',syncUI);
   setInterval(()=>{ if(room) syncUI(); },5000);
+  setInterval(()=>{ if(room) beat(); },30000);
   connect();
 }
 
@@ -945,7 +1027,7 @@ $('file').onchange=async e=>{
     if(rows.length<10) throw new Error('Found only '+rows.length+' usable offensive plays. The file needs DN, DIST, YARD LN, PLAY TYPE (Run/Pass) and OFF PLAY columns.');
     DATA={team:team||f.name.replace(/\.[^.]+$/,''),rows};
     try{localStorage.setItem('dpp-data',JSON.stringify(DATA));}catch(_){}
-    init(); toast('Loaded '+rows.length+' plays for '+DATA.team);
+    init(); beat(); toast('Loaded '+rows.length+' plays for '+DATA.team);
   }catch(err){toast(err.message||'Could not read that file.');}
   e.target.value='';
 };
