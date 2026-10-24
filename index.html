@@ -184,6 +184,37 @@ td.m{font-family:var(--mono);font-size:12px}
 .kp-grid .kp-alt{font-size:18px;text-transform:uppercase}
 .kp-grid .kp-done{font-size:18px;text-transform:uppercase;background:var(--red);border-color:var(--red);color:var(--red-ink)}
 @media (max-width:560px){ .keypad{width:min(280px,calc(100vw - 32px))} }
+.callcard{background:var(--red);color:#fff;border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+.callcard .cc-top{font:700 12px var(--display);letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.callcard .cc-calls{display:flex;flex-wrap:wrap;gap:4px 22px}
+.callcard .cc-calls div{display:flex;flex-direction:column}
+.callcard .cc-calls span{font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+.callcard .cc-calls b{font:800 30px/1.05 var(--display);text-transform:uppercase}
+.callcard .cc-note{font:600 14px var(--body)}
+.callcard .cc-more{font:500 12px var(--body);opacity:.9}
+.rb-call{font:800 13px var(--display);text-transform:uppercase;letter-spacing:.03em;background:var(--red);color:#fff;border-radius:4px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-read .callcard{padding:16px 20px;border-radius:14px}
+.side-read .callcard .cc-top{font-size:16px}
+.side-read .callcard .cc-calls span{font-size:15px}
+.side-read .callcard .cc-calls b{font-size:clamp(36px,5vw,60px)}
+.side-read .callcard .cc-note{font-size:20px}
+.plan-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+.pf{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pf .lbl{margin:0}
+.pf input,.pf select{font:500 15px var(--body);padding:9px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:42px;width:100%}
+.pf-wide{grid-column:span 3}
+.pf-act{display:flex;gap:8px}
+@media (max-width:760px){.plan-form{grid-template-columns:1fr 1fr}.pf-wide{grid-column:1/-1}.pf-act{grid-column:1/-1}}
+.plan-group{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.plan-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,2fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.plan-row.hit{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
+.plan-row .pr-t{font:800 16px var(--display);text-transform:uppercase}
+.plan-row .pr-t small{display:block;font:600 12px var(--body);color:var(--muted);text-transform:none}
+.plan-row .pr-c{font-size:14px}
+.plan-row .pr-c b{font-weight:700}
+.plan-row .pr-a{display:flex;gap:6px}
+.plan-row .pr-a .btn{padding:6px 9px;font-size:11px}
+@media (max-width:560px){.plan-row{grid-template-columns:1fr}.plan-row .pr-a{justify-content:flex-start}}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -241,6 +272,7 @@ td.m{font-family:var(--mono);font-size:12px}
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <button class="btn" id="resetData" hidden>Use sample data</button>
       <button class="btn" id="clearSit">Clear situation</button>
+      <button class="btn" id="planBtn">Game plan</button>
       <button class="btn" id="syncBtn" hidden>Staff sync</button>
       <button class="btn btn-red" id="sideBtn">Sideline mode</button>
       <button class="pill pill-live" id="syncPill" hidden></button>
@@ -248,6 +280,21 @@ td.m{font-family:var(--mono);font-size:12px}
     </div>
   </header>
 
+  <section class="panel planp" id="planPanel" hidden aria-label="Game plan">
+    <div class="sync-head">
+      <div><p class="lbl">Game plan · <span id="planTeam"></span></p><p class="note">Enter your stunt and coverage calls for a formation or a whole family. When that formation is picked, your call shows at the top of the read on every device in your sync room.</p></div>
+      <button class="btn" id="planClose">Close</button>
+    </div>
+    <form class="plan-form" id="planForm" autocomplete="off">
+      <label class="pf"><span class="lbl">Formation</span><select id="pfTarget"></select></label>
+      <label class="pf"><span class="lbl">When</span><select id="pfWhen"></select></label>
+      <label class="pf"><span class="lbl">Front / stunt</span><input id="pfStunt" placeholder="e.g. Tex, Slant Strong" maxlength="40"></label>
+      <label class="pf"><span class="lbl">Coverage</span><input id="pfCov" placeholder="e.g. Cover 3 Buzz" maxlength="40"></label>
+      <label class="pf pf-wide"><span class="lbl">Note (optional)</span><input id="pfNote" placeholder="e.g. Watch #5 on jet" maxlength="80"></label>
+      <div class="pf-act"><button class="btn btn-red" type="submit" id="pfSave">Add call</button><button class="btn" type="button" id="pfCancel" hidden>Cancel edit</button></div>
+    </form>
+    <div id="planList"></div>
+  </section>
   <section class="panel syncp" id="syncPanel" hidden aria-label="Staff sync">
     <div class="sync-head">
       <div><p class="lbl">Staff sync</p><p class="note">Every device in the same room shows the same situation and read. Any device can change it.</p></div>
@@ -535,12 +582,12 @@ function renderRead(){
     <div class="rb-mid">
       <div class="split"><div class="r" style="width:${run*100}%">R ${Math.round(run*100)}</div><div class="p" style="width:${pass*100}%">P ${Math.round(pass*100)}</div></div>
       <div class="rb-plays">${P.plays.slice(0,3).map(x=>`${x.p} <em>${Math.round(x.v*100)}%</em>`).join(' · ')}</div>
-      <div class="rb-meta"><span class="dot" style="background:${cc}"></span>${cl} · ${ord(S.dn)}&amp;${S.dist>=S.ytg?'G':S.dist} ${spotLabel(S.ytg)}</div>
+      ${callBarHTML()}<div class="rb-meta"><span class="dot" style="background:${cc}"></span>${cl} · ${ord(S.dn)}&amp;${S.dist>=S.ytg?'G':S.dist} ${spotLabel(S.ytg)}</div>
     </div>
     <button class="rb-go" type="button" id="rbGo">Full<br>read</button>`;
   $('rbGo').onclick=()=>{const y=$('read').getBoundingClientRect().top+scrollY-($('readbar').offsetHeight+16);window.scrollTo({top:y,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});};
   $('read').innerHTML=`
-    <div class="callout">
+    <div class="callout">${callCardHTML()}
       <div class="sit">${ord(S.dn)} &amp; ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${HASHN[S.hash]} · ${formTxt}${S.pers?' · '+S.pers+' pers':''}</div>
       <div class="big"><span class="pct" style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</span><span class="what">${lean}</span></div>
       <div class="split" aria-label="Run ${Math.round(run*100)} percent, pass ${Math.round(pass*100)} percent">
@@ -565,7 +612,7 @@ function renderRead(){
   if(!$('side').hidden) $('sBody').innerHTML=$('read').innerHTML;
 }
 
-function update(){ renderControls(); drawSpot(); renderRead(); if(typeof yardUI==='function') yardUI(); if(typeof publish==='function') publish(); }
+function update(){ renderControls(); drawSpot(); renderRead(); if(typeof yardUI==='function') yardUI(); if(typeof renderPlanList==='function' && !$('planPanel').hidden) renderPlanList(); if(typeof publish==='function') publish(); }
 
 /* ---------- sideline mode ---------- */
 let wake=null;
@@ -581,6 +628,100 @@ $('sExit').onclick=()=>openSide(false);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('side').hidden) openSide(false); });
 function renderSide(){}
 
+/* ---------- game plan calls ---------- */
+const WHENS=[['any','Any down'],['early','1st & 2nd down'],['short','3rd/4th & short (1-3)'],['med','3rd/4th & medium (4-6)'],['long','3rd/4th & long (7+)'],['rz','Red zone (inside 20)'],['gl','Goal line (inside 5)']];
+const whenLabel=w=>(WHENS.find(x=>x[0]===w)||WHENS[0])[1];
+let PLAN={team:'',t:0,calls:[]}, editId=null;
+function loadPlan(){ PLAN={team:DATA.team,t:0,calls:[]}; try{ const s=localStorage.getItem('dpp-plan:'+DATA.team); if(s){ const p=JSON.parse(s); PLAN={team:DATA.team,t:p.t||0,calls:p.calls||[]}; } }catch(_){} }
+function savePlan(bump=true){ if(bump) PLAN.t=Date.now(); PLAN.team=DATA.team; try{ localStorage.setItem('dpp-plan:'+DATA.team,JSON.stringify(PLAN)); }catch(_){} }
+function whenMatches(w){
+  const third=S.dn>=3;
+  switch(w){
+    case 'any': return true;
+    case 'early': return S.dn<=2;
+    case 'short': return third&&S.dist<=3;
+    case 'med': return third&&S.dist>=4&&S.dist<=6;
+    case 'long': return third&&S.dist>=7;
+    case 'rz': return S.ytg<=20;
+    case 'gl': return S.ytg<=5;
+  } return false;
+}
+function famOfForm(f){ const g=formGroups().find(g=>g.forms.some(([x])=>x===f)); return g?g.fam:null; }
+function matchingCalls(){
+  if(!PLAN.calls.length) return [];
+  const fam=S.form?famOfForm(S.form):S.fam;
+  const score=c=>{
+    let s;
+    if(S.form&&c.target==='form:'+S.form) s=300;
+    else if(fam&&c.target==='fam:'+fam) s=200;
+    else if(c.target==='any') s=100;
+    else return -1;
+    if(!whenMatches(c.when)) return -1;
+    return s+(c.when==='any'?0:(c.when==='gl'?30:c.when==='rz'?20:10));
+  };
+  return PLAN.calls.map(c=>({c,s:score(c)})).filter(x=>x.s>=0).sort((a,b)=>b.s-a.s).map(x=>x.c);
+}
+const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const targetLabel=tg=>tg==='any'?'Any formation':tg.startsWith('fam:')?'All '+tg.slice(4):tg.slice(5);
+function callCardHTML(){
+  const m=matchingCalls(); if(!m.length) return '';
+  const c=m[0];
+  const parts=[c.stunt&&`<div><span>Front / stunt</span><b>${esc(c.stunt)}</b></div>`,c.cov&&`<div><span>Coverage</span><b>${esc(c.cov)}</b></div>`].filter(Boolean).join('');
+  return `<div class="callcard"><div class="cc-top">Our call · ${esc(targetLabel(c.target))}${c.when!=='any'?' · '+esc(whenLabel(c.when)):''}</div>
+    <div class="cc-calls">${parts}</div>${c.note?`<div class="cc-note">${esc(c.note)}</div>`:''}
+    ${m.length>1?`<div class="cc-more">Also in the plan: ${m.slice(1,3).map(x=>esc([x.stunt,x.cov].filter(Boolean).join(' / '))+' ('+esc(targetLabel(x.target))+')').join(' · ')}</div>`:''}</div>`;
+}
+function callBarHTML(){
+  const m=matchingCalls(); if(!m.length) return '';
+  return `<div class="rb-call">Call: ${esc([m[0].stunt,m[0].cov].filter(Boolean).join(' · '))}</div>`;
+}
+function fillPlanForm(){
+  const groups=formGroups();
+  const cur=$('pfTarget').value;
+  $('pfTarget').innerHTML='<option value="any">Any formation (default call)</option>'+groups.map(g=>
+    `<optgroup label="${esc(g.fam)}"><option value="fam:${esc(g.fam)}">All ${esc(g.fam)}</option>${g.forms.map(([f])=>`<option value="form:${esc(f)}">${esc(f)}</option>`).join('')}</optgroup>`).join('');
+  $('pfWhen').innerHTML=WHENS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  if(cur) $('pfTarget').value=cur;
+}
+function resetPlanForm(){
+  editId=null; $('pfSave').textContent='Add call'; $('pfCancel').hidden=true;
+  $('pfTarget').value=S.form?'form:'+S.form:S.fam?'fam:'+S.fam:'any';
+  $('pfWhen').value='any'; $('pfStunt').value=''; $('pfCov').value=''; $('pfNote').value='';
+}
+function renderPlanList(){
+  $('planTeam').textContent=DATA.team;
+  const host=$('planList');
+  if(!PLAN.calls.length){ host.innerHTML='<p class="empty">No calls yet. Pick a formation above, type your stunt and coverage, and tap Add call.</p>'; return; }
+  const hits=new Set(matchingCalls().slice(0,1).map(c=>c.id));
+  const order=c=>(c.target==='any'?2:c.target.startsWith('fam:')?1:0);
+  const sorted=[...PLAN.calls].sort((a,b)=>targetLabel(a.target).localeCompare(targetLabel(b.target))||order(a)-order(b));
+  host.innerHTML='<div class="plan-group">'+sorted.map(c=>`<div class="plan-row${hits.has(c.id)?' hit':''}">
+    <div class="pr-t">${esc(targetLabel(c.target))}<small>${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
+    <div class="pr-c">${c.stunt?`<b>Stunt:</b> ${esc(c.stunt)}`:''}${c.stunt&&c.cov?' · ':''}${c.cov?`<b>Cov:</b> ${esc(c.cov)}`:''}${c.note?`<br><span class="note">${esc(c.note)}</span>`:''}</div>
+    <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`).join('')+'</div>';
+  host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
+    const c=PLAN.calls.find(x=>x.id===b.dataset.edit); if(!c) return;
+    editId=c.id; $('pfTarget').value=c.target; $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
+    $('pfSave').textContent='Save changes'; $('pfCancel').hidden=false; $('pfStunt').focus();
+  });
+  host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    const i=PLAN.calls.findIndex(x=>x.id===b.dataset.del); if(i<0) return;
+    const [gone]=PLAN.calls.splice(i,1); savePlan(); renderPlanList(); update();
+    toast('Deleted the call for '+targetLabel(gone.target)+'.');
+  });
+}
+$('planForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const c={target:$('pfTarget').value,when:$('pfWhen').value,stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
+  if(!c.stunt&&!c.cov) return toast('Enter a stunt or a coverage first.');
+  if(editId){ const x=PLAN.calls.find(x=>x.id===editId); if(x) Object.assign(x,c); toast('Call updated.'); }
+  else { c.id=Math.random().toString(36).slice(2,9); PLAN.calls.push(c); toast('Added the call for '+targetLabel(c.target)+'.'); }
+  savePlan(); resetPlanForm(); renderPlanList(); update();
+});
+$('pfCancel').onclick=resetPlanForm;
+$('planBtn').onclick=()=>{ const p=$('planPanel'); p.hidden=!p.hidden; if(!p.hidden){ fillPlanForm(); resetPlanForm(); renderPlanList(); p.scrollIntoView({block:'nearest'}); } };
+$('planClose').onclick=()=>{ $('planPanel').hidden=true; };
+
 /* ---------- staff sync (Firebase Realtime Database over REST) ---------- */
 const DB="https://demon-play-predictor-default-rtdb.firebaseio.com";
 const ME=Math.random().toString(36).slice(2,10);
@@ -589,7 +730,7 @@ let room=null, es=null, ready=false, applying=false, pubT=null, last=null, sendE
 let dev='Press box';
 try{ dev=localStorage.getItem('dpp-dev')||dev; room=localStorage.getItem('dpp-room')||null; }catch(_){}
 const roomUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'.json';
-function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,team:DATA.team||'',by:dev,id:ME,t:Date.now()}; }
+function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,team:DATA.team||'',by:dev,id:ME,t:Date.now(),plan:PLAN}; }
 function send(){
   if(!room) return;
   const body=snap();
@@ -599,6 +740,7 @@ function send(){
 }
 function publish(){ if(!room||!ready||applying) return; clearTimeout(pubT); pubT=setTimeout(send,250); }
 function apply(d){
+  if(d.plan && d.plan.team===DATA.team && (d.plan.t||0)>(PLAN.t||0)){ PLAN={team:d.plan.team,t:d.plan.t,calls:Array.isArray(d.plan.calls)?d.plan.calls:Object.values(d.plan.calls||{})}; savePlan(false); renderPlanList(); }
   applying=true;
   Object.assign(S,{dn:d.dn??S.dn,dist:d.dist??S.dist,ytg:d.ytg??S.ytg,hash:d.hash||S.hash,form:d.form||null,fam:d.fam||null,pers:d.pers||null});
   update(); applying=false;
@@ -717,7 +859,8 @@ $('file').onchange=async e=>{
 $('resetData').onclick=()=>{DATA=SAMPLE;try{localStorage.removeItem('dpp-data');}catch(_){} init(); toast('Back to the sample scouting data');};
 
 function init(){
-  prep(); S.form=null;S.fam=null;S.pers=null;
+  prep(); loadPlan(); S.form=null;S.fam=null;S.pers=null;
+  if(!$('planPanel').hidden){ fillPlanForm(); renderPlanList(); }
   $('teamName').textContent=DATA.team;
   const games=new Set(DATA.rows.map(r=>r.opp)).size;
   $('dataInfo').textContent=DATA.rows.length+' plays · '+games+' game'+(games===1?'':'s');
