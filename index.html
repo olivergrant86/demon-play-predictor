@@ -240,6 +240,22 @@ td.m{font-family:var(--mono);font-size:12px}
 .pbfield{position:sticky;top:calc(env(safe-area-inset-top,0px) + 58px);padding:10px;gap:6px;align-self:start}
 .pbfield .lbl{margin:0}
 .pbfield .field-wrap{width:min(320px,calc((100vh - 120px) * 0.444))}
+.big.low .pct{opacity:.5}
+.lowbadge{font:800 14px var(--display);letter-spacing:.08em;text-transform:uppercase;background:#d99a00;color:#111;border-radius:6px;padding:5px 9px;align-self:center}
+.rb-big.low b{opacity:.5}
+.side-read .lowbadge{font-size:clamp(18px,2.4vw,26px);padding:8px 14px}
+.side-read .callout{display:flex;flex-direction:column}
+.side-read .callout .sit{order:-1;font:800 clamp(30px,4.4vw,56px)/1.05 var(--display);letter-spacing:.02em;color:var(--ink);margin-bottom:6px}
+.hashcol{display:grid;grid-template-rows:repeat(3,1fr);gap:5px;min-width:96px}
+.hashcol .chip{font:800 17px var(--display);text-transform:uppercase;letter-spacing:.04em;justify-content:center;align-items:center;min-height:0;padding:4px 10px}
+@media (max-width:560px){
+  .dist{display:grid;grid-template-columns:auto auto auto 1fr;justify-items:start}
+  .distchips{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));width:100%}
+  .distchips .chip{justify-content:center;padding:8px 0}
+  .ydwrap{flex-wrap:wrap}
+  .hashcol{order:3;width:100%;grid-template-rows:none;grid-template-columns:repeat(3,1fr)}
+  .hashcol .chip{min-height:48px;font-size:18px}
+}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -367,9 +383,9 @@ td.m{font-family:var(--mono);font-size:12px}
             <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="4">4</button><button type="button" data-k="5">5</button>
             <button type="button" data-k="6">6</button><button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="0">0</button>
           </div>
+          <div class="hashcol" id="hashChips" role="group" aria-label="Hash"></div>
         </div>
       </div>
-      <div class="chips" id="hashChips"></div>
 
       <div class="row">
         <div>
@@ -382,7 +398,7 @@ td.m{font-family:var(--mono);font-size:12px}
             <button class="step" id="dMinus" aria-label="Less distance">−</button>
             <output id="distOut">10</output>
             <button class="step" id="dPlus" aria-label="More distance">+</button>
-            <div class="chips scroll" id="distChips"></div>
+            <div class="chips distchips" id="distChips"></div>
           </div>
         </div>
       </div>
@@ -518,10 +534,10 @@ function chipRow(host,items,isOn,onPick){
 }
 function counts(key){const m={};DATA.rows.forEach(r=>{const k=r[key];if(k!=null)m[k]=(m[k]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
 function renderControls(){
-  chipRow($('hashChips'),['L','M','R'].map(h=>({v:h,t:HASHN[h]})),v=>S.hash===v,v=>S.hash=v);
+  chipRow($('hashChips'),['L','M','R'].map(h=>({v:h,t:{L:'Left',M:'Middle',R:'Right'}[h]})),v=>S.hash===v,v=>S.hash=v);
   chipRow($('downChips'),[1,2,3,4].map(d=>({v:d,t:['1st','2nd','3rd','4th'][d-1]})),v=>S.dn===v,v=>S.dn=v);
   $('distOut').textContent=S.dist>=S.ytg?'G':S.dist;
-  chipRow($('distChips'),[1,2,3,5,7,10,15].map(d=>({v:d,t:d})),v=>S.dist===v,v=>S.dist=v);
+  chipRow($('distChips'),[1,2,3,4,5,6,7,8,9,10,15,20].map(d=>({v:d,t:d})),v=>S.dist===v,v=>S.dist=v);
   renderFormGroups();
   chipRow($('persChips'),[{v:null,t:'Any'}].concat(counts('pers').map(([p,n])=>({v:p,t:p,n}))),v=>S.pers===v,v=>S.pers=v);
 }
@@ -588,9 +604,23 @@ function predict(){
   const W=sc.reduce((s,x)=>s+x.w,0), W2=sc.reduce((s,x)=>s+x.w*x.w,0);
   const eff=W*W/(W2||1);
   const agg=(f)=>{const m={};sc.forEach(x=>{const k=f(x.r);if(k==null)return;m[k]=(m[k]||0)+x.w;});return Object.entries(m).map(([k,v])=>[k,v/W]).sort((a,b)=>b[1]-a[1]);};
-  const type=Object.fromEntries(agg(r=>r.type));
-  const plays=agg(r=>r.play+'|'+r.type).slice(0,6).map(([k,v])=>{const [p,t]=k.split('|');return{p,t,v};});
-  const dir=Object.fromEntries(agg(r=>r.dir));
+  // Thin film: blend toward the broader tendency (the formation's family, or the whole offense)
+  // so a handful of plays can't produce a 96% read. K = how many "plays" of weight the prior gets.
+  let prior=DATA.rows;
+  if(S.form){ const fam=famOfForm(S.form); const g=formGroups().find(g=>g.fam===fam); const set=new Set(g?g.forms.map(([f])=>f):[]); prior=DATA.rows.filter(r=>set.has(r.form)); }
+  else if(!S.fam) prior=null;   // Any formation already uses everything
+  const K=6;
+  let pw=null, PW=0;
+  if(prior && prior!==pool){ pw=prior.map(r=>({r,w:weight(r)})); PW=pw.reduce((s,x)=>s+x.w,0); }
+  const blendAgg=f=>{
+    const own=Object.fromEntries(agg(f)); if(!pw||!PW) return own;
+    const pm={}; pw.forEach(x=>{const k=f(x.r); if(k==null) return; pm[k]=(pm[k]||0)+x.w/PW;});
+    const out={}; new Set([...Object.keys(own),...Object.keys(pm)]).forEach(k=>{ out[k]=(eff*(own[k]||0)+K*(pm[k]||0))/(eff+K); });
+    return out;
+  };
+  const type=blendAgg(r=>r.type);
+  const plays=Object.entries(blendAgg(r=>r.play+'|'+r.type)).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>{const [p,t]=k.split('|');return{p,t,v};});
+  const dir=blendAgg(r=>r.dir);
   const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
   const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2);
   return {sc,eff,type,plays,dir,gain,exact,pool:pool.length};
@@ -603,14 +633,17 @@ function renderRead(){
   const lean=run>=pass?'Run':'Pass', lp=Math.round(Math.max(run,pass)*100);
   const [cl,cc]=confOf(P.eff);
   const formTxt=S.form||(S.fam?S.fam+' family':'any formation');
+  const low=cl==='Low';
+  const rp=Math.round(run*100), pp=100-rp;
+  const lab=(n,s)=>n>=12?s:'';
   const top=P.plays[0];
   const L=Math.round((P.dir.L||0)*100), R=100-L;
   const rows=P.sc.slice(0,10).map(({r,w})=>`<tr><td>${r.opp} Q${r.qtr??''}</td><td class="m">${ord(r.dn)}&amp;${r.dist}</td><td class="m">${spotLabel(r._y)}</td><td>${r.form}</td><td><span class="tag ${r.type}">${r.type==='Run'?'R':'P'}</span> ${r.play}</td><td class="m">${r.gain>0?'+':''}${r.gain??0}</td></tr>`).join('');
   renderSide({lean,lp,run,pass,P,cl,cc,formTxt});
   $('readbar').innerHTML=`
-    <div class="rb-big"><b style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</b><span>${lean}</span></div>
+    <div class="rb-big${low?' low':''}"><b style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</b><span>${lean}${low?' · LOW':''}</span></div>
     <div class="rb-mid">
-      <div class="split"><div class="r" style="width:${run*100}%">R ${Math.round(run*100)}</div><div class="p" style="width:${pass*100}%">P ${Math.round(pass*100)}</div></div>
+      <div class="split"><div class="r" style="width:${rp}%">${lab(rp,'R '+rp)}</div><div class="p" style="width:${pp}%">${lab(pp,'P '+pp)}</div></div>
       <div class="rb-plays">${P.plays.slice(0,3).map(x=>`${x.p} <em>${Math.round(x.v*100)}%</em>`).join(' · ')}</div>
       ${callBarHTML()}<div class="rb-meta"><span class="dot" style="background:${cc}"></span>${cl} · ${ord(S.dn)}&amp;${S.dist>=S.ytg?'G':S.dist} ${spotLabel(S.ytg)}</div>
     </div>
@@ -619,10 +652,10 @@ function renderRead(){
   $('read').innerHTML=`
     <div class="callout">${callCardHTML()}
       <div class="sit">${ord(S.dn)} &amp; ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${HASHN[S.hash]} · ${formTxt}${S.pers?' · '+S.pers+' pers':''}</div>
-      <div class="big"><span class="pct" style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</span><span class="what">${lean}</span></div>
+      <div class="big${low?' low':''}"><span class="pct" style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</span><span class="what">${lean}</span>${low?'<span class="lowbadge">Low confidence · thin film</span>':''}</div>
       <div class="split" aria-label="Run ${Math.round(run*100)} percent, pass ${Math.round(pass*100)} percent">
-        <div class="r" style="width:${run*100}%">RUN ${Math.round(run*100)}%</div>
-        <div class="p" style="width:${pass*100}%">PASS ${Math.round(pass*100)}%</div>
+        <div class="r" style="width:${rp}%">${lab(rp,'RUN '+rp+'%')}</div>
+        <div class="p" style="width:${pp}%">${lab(pp,'PASS '+pp+'%')}</div>
       </div>
       <div class="conf"><span class="dot" style="background:${cc}"></span>${cl} confidence <span class="note">· ${S.form||S.fam?`using only the ${P.pool} ${S.form||S.fam} play${P.pool===1?'':'s'} on film · `:''}~${Math.round(P.eff)} similar, ${P.exact.length} near-exact</span></div>
     </div>
