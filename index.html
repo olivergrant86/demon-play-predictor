@@ -156,16 +156,17 @@ td.m{font-family:var(--mono);font-size:12px}
 .fg-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .fg-cur{font:800 18px var(--display);text-transform:uppercase;color:var(--red)}
 .fgroups{display:flex;flex-direction:column;gap:8px}
-.fg{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:8px}
+.famrow .chip{font:800 19px var(--display);min-height:46px;padding:8px 14px}
+.famrow .chip .n{font-size:11px}
+.fg{display:flex;flex-direction:column;gap:8px;border:1px solid var(--red);border-radius:10px;padding:10px;box-shadow:inset 3px 0 0 var(--red);animation:fgIn .15s ease-out}
+@keyframes fgIn{from{opacity:.4;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fg{animation:none}}
 .fg.on{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
-.fg-name{font:800 20px/1.1 var(--display);padding-top:8px;letter-spacing:.02em;overflow-wrap:anywhere}
+.fg-name{font:700 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .chip-more{background:transparent;color:var(--red);border-color:transparent;font-weight:700}
 .chip-all{border-style:dashed}
 .chip-all[aria-pressed="true"]{border-style:solid}
-@media (max-width:560px){
-  .fg{grid-template-columns:1fr;gap:6px;padding:8px 12px}
-  .fg-name{padding-top:0;font-size:18px}
-}
+@media (max-width:560px){ .famrow .chip{font-size:17px;padding:8px 11px} }
 .ydwrap{position:relative;display:flex;gap:8px;align-items:stretch}
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .segb{font:800 17px var(--display);text-transform:uppercase;letter-spacing:.04em;padding:0 14px;min-height:48px;border:0;background:var(--bg);color:var(--ink);cursor:pointer}
@@ -361,7 +362,7 @@ td.m{font-family:var(--mono);font-size:12px}
 
       <div>
         <div class="fg-top"><p class="lbl" style="margin:0">Formation</p><span class="fg-cur" id="formCur"></span></div>
-        <p class="note" style="margin:4px 0 8px">Tap the exact formation, or tap "All" in a group if you can only tell the family.</p>
+        <p class="note" style="margin:4px 0 8px">Tap the family, then the exact formation if you know it.</p>
         <div class="fgroups" id="formGroups"></div>
       </div>
 
@@ -499,33 +500,32 @@ function formGroups(){
   Object.entries(byForm).forEach(([f,m])=>{ const fam=Object.entries(m.fams).sort((a,b)=>b[1]-a[1])[0][0]; (groups[fam]||(groups[fam]={fam,n:0,forms:[]})); groups[fam].n+=m.n; groups[fam].forms.push([f,m.n]); });
   return Object.values(groups).sort((a,b)=>b.n-a.n).map(g=>(g.forms.sort((a,b)=>b[1]-a[1]),g));
 }
-const EXPANDED=new Set();
-let lastSmall=null; addEventListener('resize',()=>{const s=matchMedia('(max-width:560px)').matches; if(s!==lastSmall){lastSmall=s; renderFormGroups();}});
 function renderFormGroups(){
   const host=$('formGroups'); host.innerHTML='';
   const groups=formGroups();
-  const anyRow=document.createElement('div'); anyRow.className='chips';
-  host.appendChild(anyRow);
-  chipRow(anyRow,[{v:null,t:'Any formation'}],()=>!S.form&&!S.fam,()=>{S.form=null;S.fam=null;});
+  const openFam=S.form?famOfForm(S.form):S.fam;
+  // Row 1: Any + families
+  const famRow=document.createElement('div'); famRow.className='chips famrow'; host.appendChild(famRow);
+  chipRow(famRow,[{v:null,t:'Any'}].concat(groups.map(g=>({v:g.fam,t:g.fam,n:g.n}))),
+    v=>v===null?(!S.form&&!S.fam):openFam===v,
+    v=>{ if(v===null){S.form=null;S.fam=null;return;}
+         if(S.fam===v&&!S.form){S.fam=null;return;}   // tap an open family again to close it
+         S.fam=v;S.form=null; });
+  famRow.querySelectorAll('.chip').forEach((c,i)=>{ if(i>0) c.classList.add('famchip'); });
+  // Row 2: formations of the open family
   let cur='Any';
-  groups.forEach(g=>{
-    const active=S.fam===g.fam||g.forms.some(([f])=>f===S.form);
-    const box=document.createElement('div'); box.className='fg'+(active?' on':'');
-    box.innerHTML=`<div class="fg-name">${g.fam}</div>`;
-    const chips=document.createElement('div'); chips.className='chips fg-chips'; box.appendChild(chips);
-    const small=matchMedia('(max-width:560px)').matches, open=EXPANDED.has(g.fam);
-    let shown=g.forms; if(small&&!open&&g.forms.length>5){ shown=g.forms.slice(0,4); const sel=g.forms.find(([f])=>f===S.form); if(sel&&!shown.includes(sel)) shown=shown.concat([sel]); }
-    chipRow(chips,[{v:'fam:'+g.fam,t:'All '+g.fam,n:g.n,all:1}].concat(shown.map(([f,n])=>({v:f,t:f,n}))),
-      v=>v.startsWith('fam:')?(!S.form&&S.fam===g.fam):S.form===v,
-      v=>{ if(v.startsWith('fam:')){S.fam=S.fam===g.fam&&!S.form?null:g.fam;S.form=null;} else {S.form=S.form===v?null:v;S.fam=null;} });
+  const g=groups.find(g=>g.fam===openFam);
+  if(g){
+    const box=document.createElement('div'); box.className='fg';
+    box.innerHTML=`<div class="fg-name">${g.fam} formations</div>`;
+    const chips=document.createElement('div'); chips.className='chips'; box.appendChild(chips);
+    chipRow(chips,[{v:'fam:',t:'All '+g.fam,n:g.n}].concat(g.forms.map(([f,n])=>({v:f,t:f,n}))),
+      v=>v==='fam:'?!S.form:S.form===v,
+      v=>{ if(v==='fam:'){S.form=null;S.fam=g.fam;} else {S.form=S.form===v?null:v;S.fam=S.form?null:g.fam;} });
     chips.firstChild.classList.add('chip-all');
-    if(small&&g.forms.length>5){ const m=document.createElement('button'); m.type='button'; m.className='chip chip-more';
-      m.textContent=open?'Show fewer':'+ '+(g.forms.length-shown.length)+' more';
-      m.onclick=()=>{ open?EXPANDED.delete(g.fam):EXPANDED.add(g.fam); renderFormGroups(); }; chips.appendChild(m); }
     host.appendChild(box);
-    if(S.form&&g.forms.some(([f])=>f===S.form)) cur=S.form+' · '+g.fam;
-    else if(!S.form&&S.fam===g.fam) cur='Any '+g.fam;
-  });
+    cur=S.form?S.form+' · '+g.fam:'Any '+g.fam;
+  }
   $('formCur').textContent=cur;
 }
 $('dMinus').onclick=()=>{S.dist=Math.max(1,S.dist-1);update();};
