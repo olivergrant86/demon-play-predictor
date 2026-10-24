@@ -498,13 +498,16 @@ function weight(r){
   w*= Math.exp(-Math.abs(r._y-S.ytg)/22);
   const zone=y=>y<=20?0:y<=40?1:y<=80?2:3; if(zone(r._y)===zone(S.ytg)) w*=1.25;
   w*= r.hash===S.hash?1:0.7;
-  if(S.form){ w*= r.form===S.form?1:(r.fam===famOf(S.form)?0.25:0.04); }
-  else if(S.fam){ w*= r.fam===S.fam?1:0.06; }
   if(S.pers){ w*= String(r.pers)===String(S.pers)?1:0.35; }
   return w;
 }
 function predict(){
-  const sc=DATA.rows.map(r=>({r,w:weight(r)})).sort((a,b)=>b.w-a.w);
+  // A picked formation (or family) is a hard filter: only plays from it count.
+  let pool=DATA.rows;
+  if(S.form) pool=pool.filter(r=>r.form===S.form);
+  else if(S.fam){ const g=formGroups().find(g=>g.fam===S.fam); const set=new Set(g?g.forms.map(([f])=>f):[]); pool=pool.filter(r=>set.has(r.form)); }
+  if(!pool.length) pool=DATA.rows;
+  const sc=pool.map(r=>({r,w:weight(r)})).sort((a,b)=>b.w-a.w);
   const W=sc.reduce((s,x)=>s+x.w,0), W2=sc.reduce((s,x)=>s+x.w*x.w,0);
   const eff=W*W/(W2||1);
   const agg=(f)=>{const m={};sc.forEach(x=>{const k=f(x.r);if(k==null)return;m[k]=(m[k]||0)+x.w;});return Object.entries(m).map(([k,v])=>[k,v/W]).sort((a,b)=>b[1]-a[1]);};
@@ -512,8 +515,8 @@ function predict(){
   const plays=agg(r=>r.play+'|'+r.type).slice(0,6).map(([k,v])=>{const [p,t]=k.split('|');return{p,t,v};});
   const dir=Object.fromEntries(agg(r=>r.dir));
   const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
-  const exact=DATA.rows.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2&&(!S.form||r.form===S.form)&&(S.form||!S.fam||r.fam===S.fam));
-  return {sc,eff,type,plays,dir,gain,exact};
+  const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2);
+  return {sc,eff,type,plays,dir,gain,exact,pool:pool.length};
 }
 function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
 const ord=d=>['1st','2nd','3rd','4th'][d-1];
@@ -544,7 +547,7 @@ function renderRead(){
         <div class="r" style="width:${run*100}%">RUN ${Math.round(run*100)}%</div>
         <div class="p" style="width:${pass*100}%">PASS ${Math.round(pass*100)}%</div>
       </div>
-      <div class="conf"><span class="dot" style="background:${cc}"></span>${cl} confidence <span class="note">· built on ~${Math.round(P.eff)} similar plays, ${P.exact.length} near-exact matches</span></div>
+      <div class="conf"><span class="dot" style="background:${cc}"></span>${cl} confidence <span class="note">· ${S.form||S.fam?`using only the ${P.pool} ${S.form||S.fam} play${P.pool===1?'':'s'} on film · `:''}~${Math.round(P.eff)} similar, ${P.exact.length} near-exact</span></div>
     </div>
     <div>
       <p class="lbl">Most likely plays</p>
