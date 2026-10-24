@@ -166,6 +166,24 @@ td.m{font-family:var(--mono);font-size:12px}
   .fg{grid-template-columns:1fr;gap:6px;padding:8px 12px}
   .fg-name{padding-top:0;font-size:18px}
 }
+.ydwrap{position:relative;display:flex;gap:8px;align-items:stretch}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.segb{font:800 17px var(--display);text-transform:uppercase;letter-spacing:.04em;padding:0 14px;min-height:48px;border:0;background:var(--bg);color:var(--ink);cursor:pointer}
+.segb+.segb{border-left:1px solid var(--line)}
+.segb[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.ydbox{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:92px;min-height:48px;padding:2px 12px;border:2px solid var(--red);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer;line-height:1}
+.ydbox span{font:800 28px var(--display)}
+.ydbox small{font:600 10px var(--body);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.ydbox:focus-visible,.segb:focus-visible,.kp-grid button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.keypad{position:absolute;right:0;top:calc(100% + 8px);z-index:25;width:250px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 12px 32px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px}
+.kp-show{font:800 26px var(--display);text-align:center;padding:4px 0;border-bottom:1px solid var(--line)}
+.kp-show b{color:var(--red);letter-spacing:.06em}
+.kp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.kp-grid button{font:800 26px var(--display);min-height:54px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer}
+.kp-grid button:active{background:var(--redsoft)}
+.kp-grid .kp-alt{font-size:18px;text-transform:uppercase}
+.kp-grid .kp-done{font-size:18px;text-transform:uppercase;background:var(--red);border-color:var(--red);color:var(--red-ink)}
+@media (max-width:560px){ .keypad{width:min(280px,calc(100vw - 32px))} }
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -260,11 +278,20 @@ td.m{font-family:var(--mono);font-size:12px}
       </div>
       <div class="spotline">
         <div class="spot" id="spotTxt">Own 25<small>Left hash</small></div>
-        <div class="nudge">
-          <button class="step" data-ny="-5" aria-label="Back 5 yards">-5</button>
-          <button class="step" data-ny="-1" aria-label="Back 1 yard">-1</button>
-          <button class="step" data-ny="1" aria-label="Forward 1 yard">+1</button>
-          <button class="step" data-ny="5" aria-label="Forward 5 yards">+5</button>
+        <div class="ydwrap">
+          <div class="seg" role="group" aria-label="Side of the field">
+            <button class="segb" type="button" id="sideOwn">Own</button><button class="segb" type="button" id="sideOpp">Opp</button>
+          </div>
+          <button class="ydbox" type="button" id="ydBox" aria-haspopup="true" aria-expanded="false" aria-label="Type the yard line"><span id="ydNum">25</span><small>tap to type</small></button>
+          <div class="keypad" id="keypad" hidden role="dialog" aria-label="Yard line keypad">
+            <div class="kp-show"><span id="kpSide">OWN</span> <b id="kpNum">_ _</b></div>
+            <div class="kp-grid">
+              <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+              <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+              <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+              <button type="button" data-k="side" class="kp-alt" id="kpFlip">Opp</button><button type="button" data-k="0">0</button><button type="button" data-k="done" class="kp-done">Done</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="chips" id="hashChips"></div>
@@ -362,7 +389,46 @@ $('fieldWrap').addEventListener('click',e=>{
   S.hash=p.y<222?'L':p.y>310?'R':'M';
   update();
 });
-document.querySelectorAll('[data-ny]').forEach(b=>b.onclick=()=>{S.ytg=Math.min(99,Math.max(1,S.ytg-(+b.dataset.ny)));update();});
+/* ---------- yard line entry ---------- */
+const sideOf=y=>y>=50?'own':'opp';
+const numOf=y=>y>=50?100-y:y;
+const ytgFrom=(side,n)=>n===50?50:(side==='own'?100-n:n);
+let kpBuf='', kpSideSel=null;
+function yardUI(){
+  const side=kpSideSel||sideOf(S.ytg);
+  $('sideOwn').setAttribute('aria-pressed',side==='own');
+  $('sideOpp').setAttribute('aria-pressed',side==='opp');
+  $('ydNum').textContent=numOf(S.ytg);
+  $('kpSide').textContent=side==='own'?'OWN':'OPP';
+  $('kpNum').textContent=kpBuf||'_ _';
+  $('kpFlip').textContent=side==='own'?'Opp':'Own';
+}
+function setSide(side){ kpSideSel=side; S.ytg=ytgFrom(side,numOf(S.ytg)); update(); }
+$('sideOwn').onclick=()=>setSide('own');
+$('sideOpp').onclick=()=>setSide('opp');
+function kpOpen(on){
+  $('keypad').hidden=!on; $('ydBox').setAttribute('aria-expanded',on);
+  kpBuf=''; kpSideSel=on?sideOf(S.ytg):null; yardUI();
+}
+$('ydBox').onclick=e=>{ e.stopPropagation(); kpOpen($('keypad').hidden); };
+function kpPress(k){
+  if(k==='done') return kpOpen(false);
+  if(k==='side'){ const s=(kpSideSel||sideOf(S.ytg))==='own'?'opp':'own'; kpSideSel=s; S.ytg=ytgFrom(s,numOf(S.ytg)); update(); return; }
+  if(k==='back'){ kpBuf=kpBuf.slice(0,-1); yardUI(); return; }
+  let b=kpBuf+k; if(b.length>2||+b>50) b=k;
+  kpBuf=b; const n=+b;
+  if(n>=1&&n<=50){ S.ytg=ytgFrom(kpSideSel||sideOf(S.ytg),n); update(); }
+  else yardUI();
+  if(b.length===2&&n>=1&&n<=50) setTimeout(()=>kpOpen(false),250);
+}
+$('keypad').addEventListener('click',e=>{ e.stopPropagation(); const k=e.target.closest('[data-k]'); if(k) kpPress(k.dataset.k); });
+document.addEventListener('click',e=>{ if(!$('keypad').hidden && !e.target.closest('.ydwrap')) kpOpen(false); });
+document.addEventListener('keydown',e=>{
+  if($('keypad').hidden) return;
+  if(/^[0-9]$/.test(e.key)){ kpPress(e.key); e.preventDefault(); }
+  else if(e.key==='Backspace'){ kpPress('back'); e.preventDefault(); }
+  else if(e.key==='Enter'||e.key==='Escape'){ kpOpen(false); e.preventDefault(); }
+});
 
 /* ---------- controls ---------- */
 function chipRow(host,items,isOn,onPick){
@@ -496,7 +562,7 @@ function renderRead(){
   if(!$('side').hidden) $('sBody').innerHTML=$('read').innerHTML;
 }
 
-function update(){ renderControls(); drawSpot(); renderRead(); if(typeof publish==='function') publish(); }
+function update(){ renderControls(); drawSpot(); renderRead(); if(typeof yardUI==='function') yardUI(); if(typeof publish==='function') publish(); }
 
 /* ---------- sideline mode ---------- */
 let wake=null;
