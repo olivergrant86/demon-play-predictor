@@ -153,6 +153,19 @@ td.m{font-family:var(--mono);font-size:12px}
 .code{font:800 52px/1 var(--display);letter-spacing:.14em;color:var(--red)}
 .warn-txt{color:#b07a00;font-weight:600}
 .s-live{display:block;font:800 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:#ff2a45;margin-bottom:2px}
+.fg-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.fg-cur{font:800 18px var(--display);text-transform:uppercase;color:var(--red)}
+.fgroups{display:flex;flex-direction:column;gap:8px}
+.fg{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:8px}
+.fg.on{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
+.fg-name{font:800 20px/1.1 var(--display);padding-top:8px;letter-spacing:.02em;overflow-wrap:anywhere}
+.chip-more{background:transparent;color:var(--red);border-color:transparent;font-weight:700}
+.chip-all{border-style:dashed}
+.chip-all[aria-pressed="true"]{border-style:solid}
+@media (max-width:560px){
+  .fg{grid-template-columns:1fr;gap:6px;padding:8px 12px}
+  .fg-name{padding-top:0;font-size:18px}
+}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -273,13 +286,9 @@ td.m{font-family:var(--mono);font-size:12px}
       </div>
 
       <div>
-        <p class="lbl">Formation</p>
-        <div class="chips scroll" id="formChips"></div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select id="formSel" aria-label="All formations"></select>
-          <span class="note">Not sure of the exact call? Pick the family instead:</span>
-        </div>
-        <div class="chips scroll" id="famChips" style="margin-top:8px"></div>
+        <div class="fg-top"><p class="lbl" style="margin:0">Formation</p><span class="fg-cur" id="formCur"></span></div>
+        <p class="note" style="margin:4px 0 8px">Tap the exact formation, or tap "All" in a group if you can only tell the family.</p>
+        <div class="fgroups" id="formGroups"></div>
       </div>
 
       <div>
@@ -369,13 +378,46 @@ function renderControls(){
   chipRow($('downChips'),[1,2,3,4].map(d=>({v:d,t:['1st','2nd','3rd','4th'][d-1]})),v=>S.dn===v,v=>S.dn=v);
   $('distOut').textContent=S.dist>=S.ytg?'G':S.dist;
   chipRow($('distChips'),[1,2,3,5,7,10,15].map(d=>({v:d,t:d})),v=>S.dist===v,v=>S.dist=v);
-  const fc=counts('form');
-  chipRow($('formChips'),[{v:null,t:'Any'}].concat(fc.slice(0,12).map(([f,n])=>({v:f,t:f,n}))),v=>S.form===v,v=>{S.form=v;S.fam=null;});
-  const sel=$('formSel'); sel.innerHTML='<option value="">All formations…</option>'+fc.map(([f,n])=>`<option ${S.form===f?'selected':''}>${f}</option>`).join('');
-  chipRow($('famChips'),counts('fam').map(([f,n])=>({v:f,t:f,n})),v=>!S.form&&S.fam===v,v=>{S.fam=S.fam===v?null:v;S.form=null;});
+  renderFormGroups();
   chipRow($('persChips'),[{v:null,t:'Any'}].concat(counts('pers').map(([p,n])=>({v:p,t:p,n}))),v=>S.pers===v,v=>S.pers=v);
 }
-$('formSel').onchange=e=>{S.form=e.target.value||null;S.fam=null;update();};
+function formGroups(){
+  // Each formation goes in the family it is most often tagged with.
+  const byForm={};
+  DATA.rows.forEach(r=>{ const m=byForm[r.form]||(byForm[r.form]={n:0,fams:{}}); m.n++; m.fams[r.fam]=(m.fams[r.fam]||0)+1; });
+  const groups={};
+  Object.entries(byForm).forEach(([f,m])=>{ const fam=Object.entries(m.fams).sort((a,b)=>b[1]-a[1])[0][0]; (groups[fam]||(groups[fam]={fam,n:0,forms:[]})); groups[fam].n+=m.n; groups[fam].forms.push([f,m.n]); });
+  return Object.values(groups).sort((a,b)=>b.n-a.n).map(g=>(g.forms.sort((a,b)=>b[1]-a[1]),g));
+}
+const EXPANDED=new Set();
+let lastSmall=null; addEventListener('resize',()=>{const s=matchMedia('(max-width:560px)').matches; if(s!==lastSmall){lastSmall=s; renderFormGroups();}});
+function renderFormGroups(){
+  const host=$('formGroups'); host.innerHTML='';
+  const groups=formGroups();
+  const anyRow=document.createElement('div'); anyRow.className='chips';
+  host.appendChild(anyRow);
+  chipRow(anyRow,[{v:null,t:'Any formation'}],()=>!S.form&&!S.fam,()=>{S.form=null;S.fam=null;});
+  let cur='Any';
+  groups.forEach(g=>{
+    const active=S.fam===g.fam||g.forms.some(([f])=>f===S.form);
+    const box=document.createElement('div'); box.className='fg'+(active?' on':'');
+    box.innerHTML=`<div class="fg-name">${g.fam}</div>`;
+    const chips=document.createElement('div'); chips.className='chips fg-chips'; box.appendChild(chips);
+    const small=matchMedia('(max-width:560px)').matches, open=EXPANDED.has(g.fam);
+    let shown=g.forms; if(small&&!open&&g.forms.length>5){ shown=g.forms.slice(0,4); const sel=g.forms.find(([f])=>f===S.form); if(sel&&!shown.includes(sel)) shown=shown.concat([sel]); }
+    chipRow(chips,[{v:'fam:'+g.fam,t:'All '+g.fam,n:g.n,all:1}].concat(shown.map(([f,n])=>({v:f,t:f,n}))),
+      v=>v.startsWith('fam:')?(!S.form&&S.fam===g.fam):S.form===v,
+      v=>{ if(v.startsWith('fam:')){S.fam=S.fam===g.fam&&!S.form?null:g.fam;S.form=null;} else {S.form=S.form===v?null:v;S.fam=null;} });
+    chips.firstChild.classList.add('chip-all');
+    if(small&&g.forms.length>5){ const m=document.createElement('button'); m.type='button'; m.className='chip chip-more';
+      m.textContent=open?'Show fewer':'+ '+(g.forms.length-shown.length)+' more';
+      m.onclick=()=>{ open?EXPANDED.delete(g.fam):EXPANDED.add(g.fam); renderFormGroups(); }; chips.appendChild(m); }
+    host.appendChild(box);
+    if(S.form&&g.forms.some(([f])=>f===S.form)) cur=S.form+' · '+g.fam;
+    else if(!S.form&&S.fam===g.fam) cur='Any '+g.fam;
+  });
+  $('formCur').textContent=cur;
+}
 $('dMinus').onclick=()=>{S.dist=Math.max(1,S.dist-1);update();};
 $('dPlus').onclick=()=>{S.dist=Math.min(40,S.dist+1);update();};
 $('clearSit').onclick=()=>{Object.assign(S,{ytg:75,hash:'L',dn:1,dist:10,form:null,fam:null,pers:null});update();};
