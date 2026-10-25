@@ -267,6 +267,18 @@ td.m{font-family:var(--mono);font-size:12px}
 .rc-t span{font-size:14px;color:var(--muted)}
 .rc-ok{color:#2f8f4e}.rc-warn{color:#b07a00}.rc-bad{color:var(--red)}
 @media (max-width:560px){.rc{grid-template-columns:34px minmax(0,1fr)}.rc .btn{grid-column:2;justify-self:start}}
+.sides{display:flex;flex-direction:column;gap:14px}
+.sidegrp{display:flex;flex-direction:column;gap:6px}
+.sidegrp:not(.lead){opacity:.78}
+.sg-h{display:flex;align-items:center;gap:8px;margin:0}
+.sg-h b{color:var(--ink);font-size:14px}
+.sg-n{margin:0;font-size:12px}
+.sidegrp .pl{grid-template-columns:minmax(0,1fr) 46px}
+.sidegrp .bar{background:var(--line)}
+.side-read .sg-h{font-size:17px}
+.side-read .sg-h b{font-size:20px}
+.side-read .sg-n{font-size:15px}
+.side-read .sidegrp .pl{grid-template-columns:minmax(0,1fr) 70px}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -642,11 +654,16 @@ function predict(){
     return out;
   };
   const type=blendAgg(r=>r.type);
-  const plays=Object.entries(blendAgg(r=>r.play+'|'+r.type)).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>{const [p,t]=k.split('|');return{p,t,v};});
+  const allPlays=Object.entries(blendAgg(r=>r.play+'|'+r.type)).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const [p,t]=k.split('|');return{p,t,v};});
+  const plays=allPlays.slice(0,6);
+  // Each side's plays as a share of that side ("if they pass, which pass?")
+  const side=tp=>{ const tot=allPlays.filter(x=>x.t===tp).reduce((s,x)=>s+x.v,0); const list=allPlays.filter(x=>x.t===tp);
+    return {n:new Set(pool.filter(r=>r.type===tp).map(r=>r.play)).size, list:list.slice(0,5).map(x=>({p:x.p,t:tp,v:tot?x.v/tot:0}))}; };
+  const bySide={Run:side('Run'),Pass:side('Pass')};
   const dir=blendAgg(r=>r.dir);
   const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
   const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2);
-  return {sc,eff,type,plays,dir,gain,exact,pool:pool.length};
+  return {sc,eff,type,plays,bySide,dir,gain,exact,pool:pool.length};
 }
 function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
 const ord=d=>['1st','2nd','3rd','4th'][d-1];
@@ -659,7 +676,8 @@ function renderRead(){
   const low=cl==='Low';
   const rp=Math.round(run*100), pp=100-rp;
   const lab=(n,s)=>n>=12?s:'';
-  const top=P.plays[0];
+  const top=P.bySide[lean].list[0]||P.plays[0];
+  const other=lean==='Run'?'Pass':'Run';
   const L=Math.round((P.dir.L||0)*100), R=100-L;
   const rows=P.sc.slice(0,10).map(({r,w})=>`<tr><td>${r.opp} Q${r.qtr??''}</td><td class="m">${ord(r.dn)}&amp;${r.dist}</td><td class="m">${spotLabel(r._y)}</td><td>${r.form}</td><td><span class="tag ${r.type}">${r.type==='Run'?'R':'P'}</span> ${r.play}</td><td class="m">${r.gain>0?'+':''}${r.gain??0}</td></tr>`).join('');
   renderSide({lean,lp,run,pass,P,cl,cc,formTxt});
@@ -667,7 +685,7 @@ function renderRead(){
     <div class="rb-big${low?' low':''}"><b style="color:${lean==='Run'?'var(--run)':'var(--ink)'}">${lp}%</b><span>${lean}${low?' · LOW':''}</span></div>
     <div class="rb-mid">
       <div class="split"><div class="r" style="width:${rp}%">${lab(rp,'R '+rp)}</div><div class="p" style="width:${pp}%">${lab(pp,'P '+pp)}</div></div>
-      <div class="rb-plays">${P.plays.slice(0,3).map(x=>`${x.p} <em>${Math.round(x.v*100)}%</em>`).join(' · ')}</div>
+      <div class="rb-plays">If ${lean.toLowerCase()}: ${P.bySide[lean].list.slice(0,3).map(x=>`${x.p} <em>${Math.round(x.v*100)}%</em>`).join(' · ')}</div>
       ${callBarHTML()}<div class="rb-meta"><span class="dot" style="background:${cc}"></span>${cl} · ${ord(S.dn)}&amp;${S.dist>=S.ytg?'G':S.dist} ${spotLabel(S.ytg)}</div>
     </div>
     <button class="rb-go" type="button" id="rbGo">Full<br>read</button>`;
@@ -683,13 +701,17 @@ function renderRead(){
       <div class="conf"><span class="dot" style="background:${cc}"></span>${cl} confidence <span class="note">· ${S.form||S.fam?`using only the ${P.pool} ${S.form||S.fam} play${P.pool===1?'':'s'} on film · `:''}~${Math.round(P.eff)} similar, ${P.exact.length} near-exact</span></div>
     </div>
     <div>
-      <p class="lbl">Most likely plays</p>
-      <div class="plays">${P.plays.map(x=>`<div class="pl"><div class="nm"><span class="tag ${x.t}">${x.t==='Run'?'RUN':'PASS'}</span><span>${x.p}</span></div><div class="v">${Math.round(x.v*100)}%</div><div class="bar"><i style="width:${Math.round(x.v/P.plays[0].v*100)}%"></i></div></div>`).join('')}</div>
+      <div class="sides">${[lean,other].map(tp=>{ const s=P.bySide[tp], share=Math.round((tp==='Run'?run:pass)*100);
+        return `<div class="sidegrp ${tp}${tp===lean?' lead':''}">
+          <p class="lbl sg-h"><span class="tag ${tp}">${tp==='Run'?'RUN':'PASS'}</span> If they ${tp.toLowerCase()} <b>${share}%</b></p>
+          ${s.list.length?`<div class="plays">${s.list.map(x=>`<div class="pl"><div class="nm"><span>${x.p}</span></div><div class="v">${Math.round(x.v*100)}%</div><div class="bar"><i style="width:${Math.max(1,Math.round(x.v*100))}%"></i></div></div>`).join('')}</div>
+          <p class="note sg-n">${s.n} different ${tp.toLowerCase()} play${s.n===1?'':'s'} on film${s.n>s.list.length?` · top ${s.list.length} shown`:''}</p>`:'<p class="note">None on film here.</p>'}
+        </div>`; }).join('')}</div>
     </div>
     <div class="stats">
       <div class="stat"><b>L ${L} · R ${R}</b><span>Direction, % of similar plays</span></div>
       <div class="stat"><b>${P.gain>=0?'+':''}${P.gain.toFixed(1)}</b><span>Avg yards, similar plays</span></div>
-      <div class="stat top"><b>${top?top.p:'—'}</b><span>Top call</span></div>
+      <div class="stat top"><b>${top?top.p:'—'}</b><span>Top ${lean.toLowerCase()} call</span></div>
     </div>
     <div>
       <p class="lbl">Closest plays on film</p>
