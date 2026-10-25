@@ -250,8 +250,7 @@ td.m{font-family:var(--mono);font-size:12px}
 .hashcol .chip{font:800 17px var(--display);text-transform:uppercase;letter-spacing:.04em;justify-content:center;align-items:center;min-height:0;padding:4px 10px}
 @media (max-width:560px){
   .dist{display:grid;grid-template-columns:auto auto auto 1fr;justify-items:start}
-  .distchips{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));width:100%}
-  .distchips .chip{justify-content:center;padding:8px 0}
+  .distchips{grid-template-columns:repeat(6,minmax(0,1fr))}
   .ydwrap{flex-wrap:wrap}
   .hashcol{order:3;width:100%;grid-template-rows:none;grid-template-columns:repeat(3,1fr)}
   .hashcol .chip{min-height:48px;font-size:18px}
@@ -282,6 +281,9 @@ td.m{font-family:var(--mono);font-size:12px}
 .gbtn[aria-pressed="true"]{border-color:#2f8f4e}
 .gbtn .n{font:500 11px var(--mono);opacity:.75;margin-left:3px}
 .rc .arrow{color:var(--red)}
+.distchips{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;margin-top:-4px}
+.distchips .chip{justify-content:center;align-items:center;font:800 20px var(--display);min-height:52px;padding:0}
+@media (max-width:560px){ .distchips{grid-template-columns:repeat(6,minmax(0,1fr))} .distchips .chip{min-height:48px} }
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -445,10 +447,10 @@ td.m{font-family:var(--mono);font-size:12px}
             <button class="step" id="dMinus" aria-label="Less distance">−</button>
             <output id="distOut">10</output>
             <button class="step" id="dPlus" aria-label="More distance">+</button>
-            <div class="chips distchips" id="distChips"></div>
           </div>
         </div>
       </div>
+      <div class="chips distchips" id="distChips" role="group" aria-label="Distance"></div>
 
       <div>
         <div class="fg-top"><p class="lbl" style="margin:0">Formation</p><span class="fg-cur" id="formCur"></span></div>
