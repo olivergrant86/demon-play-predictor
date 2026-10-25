@@ -364,6 +364,7 @@ td.m{font-family:var(--mono);font-size:12px}
       <label class="pf pf-wide"><span class="lbl">Note (optional)</span><input id="pfNote" placeholder="e.g. Watch #5 on jet" maxlength="80"></label>
       <div class="pf-act"><button class="btn btn-red" type="submit" id="pfSave">Add call</button><button class="btn" type="button" id="pfCancel" hidden>Cancel edit</button></div>
     </form>
+    <p class="note" id="planCloud"></p>
     <div id="planList"></div>
   </section>
   <section class="panel syncp" id="syncPanel" hidden aria-label="Staff sync">
@@ -384,7 +385,7 @@ td.m{font-family:var(--mono);font-size:12px}
     <div id="syncOn" class="sync-on" hidden>
       <div><span class="lbl">Room code</span><div class="code" id="roomCode"></div></div>
       <div class="sync-info"><p class="note" id="syncStatus"></p><p class="note">Other coaches: open the app, tap Staff sync and join this code.</p></div>
-      <button class="btn" id="leaveRoom">Leave room</button>
+      <div class="pf-act"><button class="btn" id="shareFile" type="button">Send my Hudl file to the room</button><button class="btn" id="leaveRoom">Leave room</button></div>
     </div>
   </section>
   <div class="readbar" id="readbar" aria-live="polite"></div>
@@ -728,6 +729,7 @@ async function runReady(){
   const n=PLAN.calls.length, hasDefault=PLAN.calls.some(c=>c.target==='any');
   if(!n) add('bad','Game plan loaded',`No calls entered for ${DATA.team}.`,['Open game plan',()=>{ $('readyPanel').hidden=true; $('planBtn').click(); }]);
   else add(hasDefault?'ok':'warn','Game plan loaded',`${n} call${n===1?'':'s'} for ${DATA.team}.`+(hasDefault?'':' No "Any formation" default call, so some formations will show no call.'),hasDefault?null:['Add a default call',()=>{ $('readyPanel').hidden=true; $('planBtn').click(); }]);
+  if(DB && n) add(planCloud==='ok'?'ok':'warn','Game plan backed up',planCloud==='ok'?'Saved online. If this device is cleared, the plan comes back when you load this opponent.':'Not backed up yet. Open the game plan with signal to back it up.',null);
   // 4. Sync + same file
   if(!DB) add('warn','Staff sync','Sync only works on your Vercel site.',null);
   else if(!room) add('bad','Staff sync','This device is not in a sync room.',['Open staff sync',()=>{ $('readyPanel').hidden=true; $('syncBtn').click(); }]);
@@ -741,7 +743,7 @@ async function runReady(){
     else {
       const mine=dataPrint(), bad=others.filter(p=>p.fp!==mine);
       if(!bad.length) add('ok','Every device on the same Hudl file',`${others.length+1} devices in the room (${[dev].concat(others.map(p=>p.dev)).join(', ')}), all on ${DATA.team} · ${DATA.rows.length} plays.`,null);
-      else add('bad','Every device on the same Hudl file',bad.map(p=>`${p.dev} has ${p.team||'a different file'} · ${p.plays} plays`).join('; ')+`. This device has ${DATA.team} · ${DATA.rows.length} plays. Load the same Hudl file on every device.`,null);
+      else add('bad','Every device on the same Hudl file',bad.map(p=>`${p.dev} has ${p.team||'a different file'} · ${p.plays} plays`).join('; ')+`. This device has ${DATA.team} · ${DATA.rows.length} plays.`,['Send this file to all',async()=>{ await shareData(false); setTimeout(runReady,2500); }]);
     }
   }
   const icon={ok:'✓',warn:'!',bad:'✕'};
@@ -799,8 +801,25 @@ function renderSide(){}
 const WHENS=[['any','Any down'],['early','1st & 2nd down'],['short','3rd/4th & short (1-3)'],['med','3rd/4th & medium (4-6)'],['long','3rd/4th & long (7+)'],['rz','Red zone (inside 20)'],['gl','Goal line (inside 5)']];
 const whenLabel=w=>(WHENS.find(x=>x[0]===w)||WHENS[0])[1];
 let PLAN={team:'',t:0,calls:[]}, editId=null;
-function loadPlan(){ PLAN={team:DATA.team,t:0,calls:[]}; try{ const s=localStorage.getItem('dpp-plan:'+DATA.team); if(s){ const p=JSON.parse(s); PLAN={team:DATA.team,t:p.t||0,calls:p.calls||[]}; } }catch(_){} }
-function savePlan(bump=true){ if(bump) PLAN.t=Date.now(); PLAN.team=DATA.team; try{ localStorage.setItem('dpp-plan:'+DATA.team,JSON.stringify(PLAN)); }catch(_){} }
+function loadPlan(){ PLAN={team:DATA.team,t:0,calls:[]}; try{ const s=localStorage.getItem('dpp-plan:'+DATA.team); if(s){ const p=JSON.parse(s); PLAN={team:DATA.team,t:p.t||0,calls:p.calls||[]}; } }catch(_){} pullPlan(); }
+// Cloud backup: one copy per opponent, newest wins. Works quietly; offline just skips it.
+const slug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'team';
+const planUrl=team=>DB.replace(/\/$/,'')+'/rooms/plan_'+slug(team)+'.json';
+let planCloud='';  // '', 'ok', 'off'
+function pushPlan(){ if(!DB) return; const body={team:PLAN.team,t:PLAN.t,calls:PLAN.calls};
+  fetch(planUrl(PLAN.team),{method:'PUT',body:JSON.stringify(body)}).then(r=>{planCloud=r.ok?'ok':'off';planNote();}).catch(()=>{planCloud='off';planNote();}); }
+function pullPlan(){ if(!DB) return; const team=DATA.team;
+  fetch(planUrl(team)).then(r=>r.json()).then(c=>{
+    if(team!==DATA.team) return;
+    planCloud='ok';
+    const calls=c?(Array.isArray(c.calls)?c.calls:Object.values(c.calls||{})).filter(Boolean):[];
+    if(c && (c.t||0)>(PLAN.t||0)){ const had=PLAN.calls.length; PLAN={team,t:c.t,calls}; savePlan(false); renderPlanList(); update(); if(calls.length&&!had) toast('Restored '+calls.length+' game plan call'+(calls.length===1?'':'s')+' for '+team+' from the backup.'); }
+    else if((PLAN.t||0)>((c&&c.t)||0)) pushPlan();
+    planNote();
+  }).catch(()=>{ planCloud='off'; planNote(); }); }
+function planNote(){ const el=$('planCloud'); if(!el) return;
+  el.textContent=!DB?'':planCloud==='ok'?'✓ Backed up online. Any device can restore it.':planCloud==='off'?'Not backed up right now (no signal). It will back up when you are online.':''; }
+function savePlan(bump=true){ if(bump) PLAN.t=Date.now(); PLAN.team=DATA.team; try{ localStorage.setItem('dpp-plan:'+DATA.team,JSON.stringify(PLAN)); }catch(_){} if(bump) pushPlan(); }
 function whenMatches(w){
   const third=S.dn>=3;
   switch(w){
@@ -856,7 +875,7 @@ function resetPlanForm(){
   $('pfWhen').value='any'; $('pfStunt').value=''; $('pfCov').value=''; $('pfNote').value='';
 }
 function renderPlanList(){
-  $('planTeam').textContent=DATA.team;
+  $('planTeam').textContent=DATA.team; planNote();
   const host=$('planList');
   if(!PLAN.calls.length){ host.innerHTML='<p class="empty">No calls yet. Pick a formation above, type your stunt and coverage, and tap Add call.</p>'; return; }
   const hits=new Set(matchingCalls().slice(0,1).map(c=>c.id));
@@ -897,7 +916,7 @@ let room=null, es=null, ready=false, applying=false, pubT=null, last=null, sendE
 let dev='Press box';
 try{ dev=localStorage.getItem('dpp-dev')||dev; room=localStorage.getItem('dpp-room')||null; }catch(_){}
 const roomUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'.json';
-function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,team:DATA.team||'',by:dev,id:ME,t:Date.now(),plan:PLAN}; }
+function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,team:DATA.team||'',fp:dataPrint(),by:dev,id:ME,t:Date.now(),plan:PLAN}; }
 function send(){
   if(!room) return;
   const body=snap();
@@ -917,7 +936,7 @@ function handle(d){
   if(!d) return;
   last=d;
   if(d.id!==ME) apply(d);
-  if(d.team && d.team!==DATA.team && warnedTeam!==d.team){ warnedTeam=d.team; toast(`${d.by} is scouting ${d.team}. Load the same Hudl file here so the reads match.`); }
+  if(d.id!==ME && d.fp && d.fp!==dataPrint()) pullData(d.by);
   syncUI();
 }
 function connect(){
@@ -928,8 +947,31 @@ function connect(){
   const refetch=()=>fetch(roomUrl()).then(r=>r.json()).then(handle).catch(()=>{});
   es.addEventListener('put',e=>{ try{ const m=JSON.parse(e.data); m.path==='/'?handle(m.data):refetch(); }catch(_){} });
   es.addEventListener('patch',refetch);
-  es.onopen=()=>{ syncUI(); beat(); }; es.onerror=syncUI;
+  es.onopen=()=>{ syncUI(); beat(); pullData(); }; es.onerror=syncUI;
   syncUI();
+}
+const dataUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_D.json';
+let pulling=false, pulledFp='';
+function shareData(quiet){
+  if(!DB||!room) return Promise.resolve(false);
+  const body={team:DATA.team,rows:DATA.rows,fp:dataPrint(),by:dev,t:Date.now(),sample:DATA===SAMPLE};
+  return fetch(dataUrl(),{method:'PUT',body:JSON.stringify(body)}).then(r=>{ if(!r.ok) throw 0; if(!quiet) toast('Sent '+DATA.team+' ('+DATA.rows.length+' plays) to everyone in room '+room+'.'); send(); return true; })
+    .catch(()=>{ if(!quiet) toast('Could not send the file. Check the signal and try again.'); return false; });
+}
+function pullData(from){
+  if(!DB||!room||pulling) return;
+  pulling=true;
+  fetch(dataUrl()).then(r=>r.json()).then(d=>{
+    if(!d||!d.rows) return;
+    const rows=(Array.isArray(d.rows)?d.rows:Object.values(d.rows)).filter(Boolean);
+    if(d.fp===dataPrint()||d.fp===pulledFp) return;
+    pulledFp=d.fp;
+    DATA=d.sample?SAMPLE:{team:d.team,rows};
+    try{ d.sample?localStorage.removeItem('dpp-data'):localStorage.setItem('dpp-data',JSON.stringify(DATA)); }catch(_){}
+    applying=true; init(); applying=false; beat();
+    if(last) apply(last);
+    toast('Got the '+DATA.team+' file ('+DATA.rows.length+' plays) from the '+(d.by||from||'room')+'.');
+  }).catch(()=>{}).finally(()=>{ pulling=false; });
 }
 const presUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_P.json';
 const presMe=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_P/'+ME+'.json';
@@ -974,6 +1016,7 @@ if(DB){
   $('startRoom').onclick=()=>{ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; setRoom(c); toast('Room '+c+' started. Share the code with your staff.'); };
   $('joinRoom').onclick=()=>{ const c=$('joinCode').value.trim().toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(c)) return toast('Enter the 4-character room code.'); $('joinCode').value=''; setRoom(c); toast('Joined room '+c+'.'); };
   $('joinCode').addEventListener('keydown',e=>{ if(e.key==='Enter') $('joinRoom').click(); });
+  $('shareFile').onclick=()=>shareData(false);
   $('leaveRoom').onclick=()=>{ setRoom(null); toast('Left the room. This device works on its own now.'); };
   addEventListener('online',()=>{ if(room && (!es||es.readyState===2)) connect(); else syncUI(); });
   addEventListener('offline',syncUI);
@@ -1027,11 +1070,11 @@ $('file').onchange=async e=>{
     if(rows.length<10) throw new Error('Found only '+rows.length+' usable offensive plays. The file needs DN, DIST, YARD LN, PLAY TYPE (Run/Pass) and OFF PLAY columns.');
     DATA={team:team||f.name.replace(/\.[^.]+$/,''),rows};
     try{localStorage.setItem('dpp-data',JSON.stringify(DATA));}catch(_){}
-    init(); beat(); toast('Loaded '+rows.length+' plays for '+DATA.team);
+    init(); beat(); if(room&&DB){ shareData(true).then(ok=>toast('Loaded '+rows.length+' plays for '+DATA.team+(ok?' and sent it to everyone in room '+room+'.':'.'))); } else toast('Loaded '+rows.length+' plays for '+DATA.team);
   }catch(err){toast(err.message||'Could not read that file.');}
   e.target.value='';
 };
-$('resetData').onclick=()=>{DATA=SAMPLE;try{localStorage.removeItem('dpp-data');}catch(_){} init(); toast('Back to the sample scouting data');};
+$('resetData').onclick=()=>{DATA=SAMPLE;try{localStorage.removeItem('dpp-data');}catch(_){} init(); beat(); if(room&&DB) shareData(true); toast('Back to the sample scouting data');};
 
 function init(){
   prep(); loadPlan(); S.form=null;S.fam=null;S.pers=null;
