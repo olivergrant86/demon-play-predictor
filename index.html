@@ -914,7 +914,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('side').hidden)
 function renderSide(){}
 
 /* ---------- game plan calls ---------- */
-const WHENS=[['any','Any down'],['early','1st & 2nd down'],['short','3rd/4th & short (1-3)'],['med','3rd/4th & medium (4-6)'],['long','3rd/4th & long (7+)'],['rz','Red zone (inside 20)'],['gl','Goal line (inside 5)']];
+const WHENS=[['any','Any down'],['early','1st & 2nd down'],['d1','1st down'],['s2','2nd & short (1-3)'],['m2','2nd & medium (4-6)'],['l2','2nd & long (7+)'],['short','3rd/4th & short (1-3)'],['med','3rd/4th & medium (4-6)'],['long','3rd/4th & long (7+)'],['rz','Red zone (inside 20)'],['gl','Goal line (inside 5)']];
 const whenLabel=w=>(WHENS.find(x=>x[0]===w)||WHENS[0])[1];
 let PLAN={team:'',t:0,calls:[]}, editId=null;
 function loadPlan(){ PLAN={team:DATA.team,t:0,calls:[]}; try{ const s=localStorage.getItem('dpp-plan:'+DATA.team); if(s){ const p=JSON.parse(s); PLAN={team:DATA.team,t:p.t||0,calls:p.calls||[]}; } }catch(_){} pullPlan(); }
@@ -941,6 +941,10 @@ function whenMatches(w){
   switch(w){
     case 'any': return true;
     case 'early': return S.dn<=2;
+    case 'd1': return S.dn===1;
+    case 's2': return S.dn===2&&S.dist<=3;
+    case 'm2': return S.dn===2&&S.dist>=4&&S.dist<=6;
+    case 'l2': return S.dn===2&&S.dist>=7;
     case 'short': return third&&S.dist<=3;
     case 'med': return third&&S.dist>=4&&S.dist<=6;
     case 'long': return third&&S.dist>=7;
@@ -959,7 +963,7 @@ function matchingCalls(){
     else if(c.target==='any') s=100;
     else return -1;
     if(!whenMatches(c.when)) return -1;
-    return s+(c.when==='any'?0:(c.when==='gl'?30:c.when==='rz'?20:10));
+    return s+(c.when==='any'?0:c.when==='gl'?30:c.when==='rz'?20:c.when==='early'?5:10);
   };
   return PLAN.calls.map(c=>({c,s:score(c)})).filter(x=>x.s>=0).sort((a,b)=>b.s-a.s).map(x=>x.c);
 }
