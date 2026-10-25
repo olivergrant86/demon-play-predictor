@@ -282,19 +282,6 @@ td.m{font-family:var(--mono);font-size:12px}
 .gbtn[aria-pressed="true"]{border-color:#2f8f4e}
 .gbtn .n{font:500 11px var(--mono);opacity:.75;margin-left:3px}
 .rc .arrow{color:var(--red)}
-.voice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
-.mic{display:inline-flex;align-items:center;gap:8px;font-size:15px;padding:10px 16px;min-height:46px}
-.mic-dot{width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3)}
-.mic.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.mic.on .mic-dot{background:#ff2a45;animation:micPulse 1s infinite}
-@keyframes micPulse{50%{box-shadow:0 0 0 8px rgba(255,42,69,.15)}}
-@media (prefers-reduced-motion:reduce){.mic.on .mic-dot{animation:none}}
-#sayBox{font:500 15px var(--body);padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:46px;width:100%}
-.say-out{grid-column:1/-1;font-size:14px;min-height:0}
-.say-out:empty{display:none}
-.say-ok{font:800 16px var(--display);text-transform:uppercase;letter-spacing:.03em;color:#2f8f4e}
-.say-bad{font-weight:600;color:var(--red)}
-.say-raw{color:var(--muted);font-size:13px}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -431,11 +418,6 @@ td.m{font-family:var(--mono);font-size:12px}
       <div class="pb-hide">
         <p class="lbl">Ball spot &amp; hash — tap the field</p>
         <div class="field-wrap" id="fieldWrap"><svg id="field" viewBox="0 0 1200 533" role="img" aria-label="Football field. Tap to place the ball."></svg></div>
-      </div>
-      <div class="voice" id="voiceBar">
-        <button class="btn btn-red mic" type="button" id="micBtn" aria-label="Say the situation"><span class="mic-dot" aria-hidden="true"></span><span id="micTxt">Say it</span></button>
-        <input id="sayBox" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" placeholder="Or type / dictate: right hash 1st and 10 own 24" aria-label="Type or dictate the situation">
-        <div class="say-out" id="sayOut" aria-live="polite"></div>
       </div>
       <div class="spotline">
         <div class="spot" id="spotTxt">Own 25<small>Left hash</small></div>
@@ -659,98 +641,6 @@ function weight(r){
   if(S.pers){ w*= String(r.pers)===String(S.pers)?1:0.35; }
   return w;
 }
-/* ---------- voice entry ---------- */
-// Turns a spoken or typed phrase into situation changes. Only what is mentioned changes.
-function parseSay(text, ctx){
-  // ctx: {forms:[names], fams:[names], pers:[codes]}
-  const out={}, heard=[];
-  let s=' '+String(text||'').toLowerCase().replace(/[-–]/g,' ').replace(/[.,!?;:]/g,' ').replace(/&/g,' and ').replace(/\s+/g,' ')+' ';
-  const ONES={zero:0,oh:0,one:1,won:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,seven:7,eight:8,ate:8,nine:9,ten:10,eleven:11,twelve:12,
-    thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19};
-  const TENS={twenty:20,thirty:30,forty:40,fourty:40,fifty:50};
-  // number words -> digits (keep "to/for" unless next to another number word)
-  s=s.replace(/\b(twenty|thirty|forty|fourty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/g,(m,a,b)=>' '+(TENS[a]+ONES[b])+' ');
-  s=s.replace(/\b(twenty|thirty|forty|fourty|fifty)\b/g,(m,a)=>' '+TENS[a]+' ');
-  s=s.replace(/\b(zero|one|won|three|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)\b/g,(m,a)=>' '+ONES[a]+' ');
-  s=s.replace(/\b(two|four)\b/g,(m,a)=>' '+ONES[a]+' ');
-  s=s.replace(/\b(\d+)\s*(st|nd|rd|th)\b/g,' $1 ');
-  s=s.replace(/\bfirst\b/g,' 1 ').replace(/\bsecond\b/g,' 2 ').replace(/\bthird\b/g,' 3 ').replace(/\bfourth\b|\bforth\b/g,' 4 ');
-  s=s.replace(/\b(\d)\s*(x|by|bye)\s*(\d)\b/g,' $1x$3 ');
-  s=s.replace(/\s+/g,' ');
-  // hash
-  let m=s.match(/\b(left|right|middle|center|centre|mid)\s*(hash|hatch|has|hashes|hashmark)?\b/);
-  if(m && (m[2] || /\bhash|hatch\b/.test(s) || ['middle','center','centre'].includes(m[1]))){
-    out.hash={left:'L',right:'R'}[m[1]]||'M'; heard.push({left:'Left',right:'Right'}[m[1]]?({left:'Left',right:'Right'}[m[1]]+' hash'):'Middle');
-  }
-  // down and distance: "3 and 6", "1 and goal", "2 and inches"
-  m=s.match(/\b([1-4])\s*(?:and|n|&)\s*(goal|inches|\d{1,2})\b/);
-  if(m){ out.dn=+m[1]; if(m[2]==='goal') out.goal=true; else out.dist=m[2]==='inches'?1:+m[2]; heard.push(['1st','2nd','3rd','4th'][out.dn-1]+' & '+(out.goal?'goal':out.dist)); }
-  else { m=s.match(/\b([1-4])\s*(?:down|and long|and short|n long)\b/); if(m){ out.dn=+m[1]; heard.push(['1st','2nd','3rd','4th'][out.dn-1]+' down'); } }
-  // yard line
-  m=s.match(/\b(?:the\s+)?(50|midfield|mid field)\b(?!\s*(?:and|n)\b)/);
-  const spot=s.match(/\b(their own|own|their|minus|our|opp|opponent|opponents|plus|the demons|demons)\s+(?:side\s+)?(\d{1,2})\b/);
-  if(spot){ const n=+spot[2]; if(n>=1&&n<=50){ const opp=/^(our|opp|opponent|opponents|plus|the demons|demons)$/.test(spot[1]);
-      out.ytg=n===50?50:(opp?n:100-n); heard.push(n===50?'Midfield':(opp?'Opp ':'Own ')+n); } }
-  else if(m){ out.ytg=50; heard.push('Midfield'); }
-  // personnel: "11 personnel"
-  m=s.match(/\b(\d{2})\s*personnel\b/); if(m&&ctx.pers.includes(m[1])){ out.pers=m[1]; heard.push(m[1]+' personnel'); }
-  // formation: longest known name whose words all appear in order ("g s" -> "gs")
-  const flat=s.replace(/\b([a-z])\s(?=[a-z]\b)/g,'$1').replace(/\s+/g,' ');
-  const norm=x=>' '+String(x).toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim()+' ';
-  let best=null;
-  (ctx.forms||[]).forEach(f=>{ const n=norm(f); if(n.trim().length<2) return; if(flat.includes(n) && (!best||n.length>best.n.length)) best={f,n}; });
-  if(best){ out.form=best.f; heard.push(best.f); }
-  else {
-    let fam=null; (ctx.fams||[]).forEach(f=>{ const n=norm(f); if(flat.includes(n)&&(!fam||n.length>fam.n.length)) fam={f,n}; });
-    if(fam){ out.fam=fam.f; heard.push(fam.f+' family'); }
-    else if(/\bany formation\b|\bno formation\b|\bclear formation\b/.test(s)){ out.anyForm=true; heard.push('Any formation'); }
-  }
-  return {out,heard};
-}
-
-function applySay(text){
-  text=String(text||'').trim(); if(!text) return;
-  const groups=formGroups();
-  const {out,heard}=parseSay(text,{forms:groups.flatMap(g=>g.forms.map(([f])=>f)),fams:groups.map(g=>g.fam),pers:counts('pers').map(([p])=>String(p))});
-  if(!heard.length){ $('sayOut').innerHTML=`<span class="say-bad">Didn't catch that: "${esc(text)}"</span>`; return false; }
-  if(out.hash) S.hash=out.hash;
-  if(out.dn) S.dn=out.dn;
-  if(out.ytg) S.ytg=out.ytg;
-  if(out.dist) S.dist=out.dist;
-  if(out.goal) S.dist=S.ytg;
-  if(out.form){ S.form=out.form; S.fam=null; }
-  if(out.fam){ S.fam=out.fam; S.form=null; }
-  if(out.anyForm){ S.form=null; S.fam=null; }
-  if(out.pers) S.pers=out.pers;
-  if(typeof kpReset==='function') kpReset();
-  update();
-  $('sayOut').innerHTML=`<span class="say-ok">✓ ${heard.map(esc).join(' · ')}</span> <span class="say-raw">heard "${esc(text)}"</span>`;
-  return true;
-}
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let rec=null, listening=false, voiceDead=!SR;
-function micUI(){ $('micBtn').classList.toggle('on',listening); $('micTxt').textContent=listening?'Listening…':'Say it'; }
-function voiceFallback(msg){ voiceDead=true; $('sayOut').innerHTML=`<span class="say-bad">${msg}</span>`; $('sayBox').focus(); }
-function startMic(){
-  if(voiceDead||!SR){ return voiceFallback("Voice isn't available here. Tap the box, then the microphone on the keyboard and talk."); }
-  if(listening){ try{ rec.stop(); }catch(_){} return; }
-  rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.maxAlternatives=1; rec.continuous=false;
-  let final='';
-  rec.onresult=e=>{ let interim=''; for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; if(r.isFinal) final+=r[0].transcript+' '; else interim+=r[0].transcript; }
-    if(!final) $('sayOut').innerHTML=`<span class="say-raw">"${esc(interim)}…"</span>`; };
-  rec.onerror=e=>{ listening=false; micUI();
-    if(e.error==='not-allowed'||e.error==='service-not-allowed') voiceFallback("The microphone isn't allowed for this page. Tap the box, then the microphone on the keyboard and talk.");
-    else if(e.error==='network') $('sayOut').innerHTML='<span class="say-bad">Voice needs signal. Use the keypad, or the keyboard microphone in the box.</span>';
-    else if(e.error==='no-speech') $('sayOut').innerHTML='<span class="say-bad">Didn\'t hear anything. Tap Say it and talk right away.</span>'; };
-  rec.onend=()=>{ listening=false; micUI(); if(final.trim()) applySay(final); };
-  try{ rec.start(); listening=true; micUI(); $('sayOut').innerHTML='<span class="say-raw">Listening… say it like "right hash, 1st and 10, own 24"</span>'; }
-  catch(_){ voiceFallback("Voice couldn't start. Tap the box, then the microphone on the keyboard and talk."); }
-}
-$('micBtn').onclick=startMic;
-$('sayBox').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); if(applySay(e.target.value)!==false) e.target.value=''; } });
-$('sayBox').addEventListener('change',e=>{ if(e.target.value.trim()&&applySay(e.target.value)!==false) e.target.value=''; });
-document.addEventListener('keydown',e=>{ if((e.key==='v'||e.key==='V')&&!e.target.closest('input,select,textarea')&&$('side').hidden&&!e.metaKey&&!e.ctrlKey){ e.preventDefault(); startMic(); } });
-
 /* ---------- typo check ---------- */
 function lev(a,b){ if(a===b) return 0; const m=a.length,n=b.length; if(Math.abs(m-n)>2) return 9;
   let p=Array.from({length:n+1},(_,j)=>j);
