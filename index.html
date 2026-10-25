@@ -284,6 +284,21 @@ td.m{font-family:var(--mono);font-size:12px}
 .distchips{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;margin-top:-4px}
 .distchips .chip{justify-content:center;align-items:center;font:800 20px var(--display);min-height:52px;padding:0}
 @media (max-width:560px){ .distchips{grid-template-columns:repeat(6,minmax(0,1fr))} .distchips .chip{min-height:48px} }
+.pf-hint{font-weight:500;letter-spacing:.04em;text-transform:none;opacity:.8}
+.pf-pick{display:flex;justify-content:space-between;align-items:center;gap:8px;font:500 15px var(--body);padding:9px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:42px;width:100%;cursor:pointer;text-align:left}
+.pf-pick span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pf-pick[aria-expanded="true"]{border-color:var(--red)}
+.pf-list{grid-column:1/-1;border:1px solid var(--red);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px;max-height:min(60vh,520px);overflow:auto;background:var(--panel)}
+.pfl-top{display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:-10px;background:var(--panel);padding-block:4px;z-index:1}
+.pfl-g{display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px;align-items:start}
+.pfl-h{font:800 18px var(--display);padding-top:8px}
+.pfl-c{display:flex;flex-wrap:wrap;gap:6px}
+.pf-cb{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--bg);cursor:pointer;font:600 14px var(--body);min-height:40px}
+.pf-cb small{font:500 11px var(--mono);color:var(--muted)}
+.pf-cb input{width:20px;height:20px;accent-color:var(--red);margin:0}
+.pf-cb:has(input:checked){border-color:var(--red);background:var(--redsoft)}
+.pf-all{border-style:dashed}
+@media (max-width:560px){.pfl-g{grid-template-columns:1fr}.pfl-h{padding-top:0}}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -383,7 +398,11 @@ td.m{font-family:var(--mono);font-size:12px}
       <button class="btn" id="planClose">Close</button>
     </div>
     <form class="plan-form" id="planForm" autocomplete="off">
-      <label class="pf"><span class="lbl">Formation</span><select id="pfTarget"></select></label>
+      <div class="pf"><span class="lbl">Formation <span class="pf-hint">check one or more</span></span><button class="pf-pick" type="button" id="pfPick" aria-expanded="false" aria-controls="pfList"><span id="pfPickTxt">Any formation</span><span aria-hidden="true">▾</span></button></div>
+      <div class="pf-list" id="pfList" hidden>
+        <div class="pfl-top"><span class="note" id="pfCount"></span><div class="pf-act"><button class="btn" type="button" id="pfClear">Clear</button><button class="btn btn-red" type="button" id="pfDone">Done</button></div></div>
+        <div id="pfGroups"></div>
+      </div>
       <label class="pf"><span class="lbl">When</span><select id="pfWhen"></select></label>
       <label class="pf"><span class="lbl">Front / stunt</span><input id="pfStunt" placeholder="e.g. Tex, Slant Strong" maxlength="40"></label>
       <label class="pf"><span class="lbl">Coverage</span><input id="pfCov" placeholder="e.g. Cover 3 Buzz" maxlength="40"></label>
@@ -981,18 +1000,31 @@ function callBarHTML(){
   const m=matchingCalls(); if(!m.length) return '';
   return `<div class="rb-call">Call: ${esc([m[0].stunt,m[0].cov].filter(Boolean).join(' · '))}</div>`;
 }
+let pfSel=new Set(['any']);
+function pfLabel(){
+  const a=[...pfSel];
+  $('pfPickTxt').textContent=!a.length?'Pick a formation':a.length===1?targetLabel(a[0]):a.length+' formations: '+a.map(targetLabel).join(', ');
+  $('pfCount').textContent=a.length?a.length+' checked':'Nothing checked';
+  $('pfSave').textContent=editId?'Save changes':a.length>1?`Add call to ${a.length} formations`:'Add call';
+}
 function fillPlanForm(){
   const groups=formGroups();
-  const cur=$('pfTarget').value;
-  $('pfTarget').innerHTML='<option value="any">Any formation (default call)</option>'+groups.map(g=>
-    `<optgroup label="${esc(g.fam)}"><option value="fam:${esc(g.fam)}">All ${esc(g.fam)}</option>${g.forms.map(([f])=>`<option value="form:${esc(f)}">${esc(f)}</option>`).join('')}</optgroup>`).join('');
+  const box=(v,label,cls='')=>`<label class="pf-cb ${cls}"><input type="checkbox" value="${esc(v)}" ${pfSel.has(v)?'checked':''}><span>${label}</span></label>`;
+  $('pfGroups').innerHTML=`<div class="pfl-any">${box('any','Any formation <small>(default call)</small>','pf-all')}</div>`+
+    groups.map(g=>`<div class="pfl-g"><div class="pfl-h">${esc(g.fam)}</div><div class="pfl-c">${box('fam:'+g.fam,'All '+esc(g.fam),'pf-all')}${g.forms.map(([f,n])=>box('form:'+f,`${esc(f)} <small>${n}</small>`)).join('')}</div></div>`).join('');
+  $('pfGroups').querySelectorAll('input').forEach(i=>i.onchange=()=>{ i.checked?pfSel.add(i.value):pfSel.delete(i.value); pfLabel(); });
   $('pfWhen').innerHTML=WHENS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
-  if(cur) $('pfTarget').value=cur;
+  pfLabel();
 }
+function pfOpen(on){ $('pfList').hidden=!on; $('pfPick').setAttribute('aria-expanded',on); }
+$('pfPick').onclick=()=>pfOpen($('pfList').hidden);
+$('pfDone').onclick=()=>pfOpen(false);
+$('pfClear').onclick=()=>{ pfSel.clear(); fillPlanForm(); };
 function resetPlanForm(){
-  editId=null; $('pfSave').textContent='Add call'; $('pfCancel').hidden=true;
-  $('pfTarget').value=S.form?'form:'+S.form:S.fam?'fam:'+S.fam:'any';
+  editId=null; $('pfCancel').hidden=true;
+  pfSel=new Set([S.form?'form:'+S.form:S.fam?'fam:'+S.fam:'any']);
   $('pfWhen').value='any'; $('pfStunt').value=''; $('pfCov').value=''; $('pfNote').value='';
+  fillPlanForm(); pfOpen(false);
 }
 function renderPlanList(){
   $('planTeam').textContent=DATA.team; planNote();
@@ -1007,7 +1039,7 @@ function renderPlanList(){
     <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`).join('')+'</div>';
   host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     const c=PLAN.calls.find(x=>x.id===b.dataset.edit); if(!c) return;
-    editId=c.id; $('pfTarget').value=c.target; $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
+    editId=c.id; pfSel=new Set([c.target]); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
     $('pfSave').textContent='Save changes'; $('pfCancel').hidden=false; $('pfStunt').focus();
   });
   host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
@@ -1018,10 +1050,16 @@ function renderPlanList(){
 }
 $('planForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const c={target:$('pfTarget').value,when:$('pfWhen').value,stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
-  if(!c.stunt&&!c.cov) return toast('Enter a stunt or a coverage first.');
-  if(editId){ const x=PLAN.calls.find(x=>x.id===editId); if(x) Object.assign(x,c); toast('Call updated.'); }
-  else { c.id=Math.random().toString(36).slice(2,9); PLAN.calls.push(c); toast('Added the call for '+targetLabel(c.target)+'.'); }
+  const base={when:$('pfWhen').value,stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
+  const targets=[...pfSel];
+  if(!targets.length){ pfOpen(true); return toast('Check at least one formation.'); }
+  if(!base.stunt&&!base.cov) return toast('Enter a stunt or a coverage first.');
+  const newId=()=>Math.random().toString(36).slice(2,9);
+  let rest=targets;
+  if(editId){ const x=PLAN.calls.find(x=>x.id===editId); if(x){ const keep=targets.includes(x.target)?x.target:targets[0]; Object.assign(x,base,{target:keep}); rest=targets.filter(t=>t!==keep); } }
+  rest.forEach(tg=>PLAN.calls.push({id:newId(),target:tg,...base}));
+  toast(editId?(rest.length?`Call updated and added to ${rest.length} more formation${rest.length===1?'':'s'}.`:'Call updated.'):
+    targets.length>1?`Added the call to ${targets.length} formations.`:'Added the call for '+targetLabel(targets[0])+'.');
   savePlan(); resetPlanForm(); renderPlanList(); update();
 });
 $('pfCancel').onclick=resetPlanForm;
