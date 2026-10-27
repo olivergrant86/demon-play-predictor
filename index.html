@@ -317,6 +317,8 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .ch-card.off span:last-child{color:var(--bg);opacity:.75}
 .ch-card.off .ch-k{color:#ff4d63}
 .ch-card.last::after{content:"Last used";align-self:flex-start;margin-top:auto;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;border:1px solid currentColor;border-radius:99px;padding:3px 8px;opacity:.7}
+.pf-note{grid-column:span 2}
+@media (max-width:760px){.pf-note{grid-column:1/-1}}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -435,7 +437,12 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
       <label class="pf"><span class="lbl">When</span><select id="pfWhen"></select></label>
       <label class="pf"><span class="lbl">Front / stunt</span><input id="pfStunt" placeholder="e.g. Tex, Slant Strong" maxlength="40"></label>
       <label class="pf"><span class="lbl">Coverage</span><input id="pfCov" placeholder="e.g. Cover 3 Buzz" maxlength="40"></label>
-      <label class="pf pf-wide"><span class="lbl">Note (optional)</span><input id="pfNote" placeholder="e.g. Watch #5 on jet" maxlength="80"></label>
+      <div class="pf"><span class="lbl">Vs. their play <span class="pf-hint">optional</span></span><button class="pf-pick" type="button" id="pvPick" aria-expanded="false" aria-controls="pvList"><span id="pvPickTxt">Any play</span><span aria-hidden="true">▾</span></button></div>
+      <div class="pf-list" id="pvList" hidden>
+        <div class="pfl-top"><span class="note" id="pvCount">Show this call when one of these plays is likely</span><div class="pf-act"><button class="btn" type="button" id="pvClear">Clear</button><button class="btn btn-red" type="button" id="pvDone">Done</button></div></div>
+        <div id="pvGroups"></div>
+      </div>
+      <label class="pf pf-note"><span class="lbl">Note (optional)</span><input id="pfNote" placeholder="e.g. Watch #5 on jet" maxlength="80"></label>
       <div class="pf-act"><button class="btn btn-red" type="submit" id="pfSave">Add call</button><button class="btn" type="button" id="pfCancel" hidden>Cancel edit</button></div>
     </form>
     <p class="note" id="planCloud"></p>
@@ -803,13 +810,13 @@ function predict(){
   const dir=blendAgg(r=>r.dir);
   const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
   const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2);
-  return {sc,eff,type,plays,bySide,dir,gain,exact,pool:pool.length};
+  return {sc,eff,type,plays,allPlays,bySide,dir,gain,exact,pool:pool.length};
 }
 function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
 const ord=d=>['1st','2nd','3rd','4th'][d-1];
 
 function renderRead(){
-  const P=predict(), run=P.type.Run||0, pass=P.type.Pass||0;
+  const P=predict(), run=P.type.Run||0, pass=P.type.Pass||0; LASTP=P;
   const lean=run>=pass?'Run':'Pass', lp=Math.round(Math.max(run,pass)*100);
   const [cl,cc]=confOf(P.eff);
   const formTxt=S.form||(S.fam?S.fam+' family':'any formation');
@@ -1013,17 +1020,32 @@ function whenMatches(w){
   } return false;
 }
 function famOfForm(f){ const g=formGroups().find(g=>g.forms.some(([x])=>x===f)); return g?g.fam:null; }
+let LASTP=null;
+// A "vs their play" call fires when that play is a real threat right now:
+// at least 8% overall, or one of the top 3 on its run/pass side.
+function vsOf(c){ return c&&c.vs?(Array.isArray(c.vs)?c.vs:Object.values(c.vs)).filter(Boolean):[]; }
+function vsHit(c){
+  if(!LASTP||!vsOf(c).length) return null;
+  let best=null;
+  vsOf(c).forEach(name=>{
+    const x=LASTP.allPlays.find(p=>p.p===name); if(!x) return;
+    const side=(LASTP.bySide[x.t]||{list:[]}).list.slice(0,3).some(p=>p.p===name);
+    if((x.v>=0.08||side)&&(!best||x.v>best.v)) best={p:name,v:x.v,t:x.t};
+  });
+  return best;
+}
 function matchingCalls(){
   if(!PLAN.calls.length) return [];
   const fam=S.form?famOfForm(S.form):S.fam;
   const score=c=>{
-    let s;
+    let s, vsBonus=0;
+    if(vsOf(c).length){ const h=vsHit(c); if(!h) return -1; vsBonus=250+h.v*100; }
     if(S.form&&c.target==='form:'+S.form) s=300;
     else if(fam&&c.target==='fam:'+fam) s=200;
     else if(c.target==='any') s=100;
     else return -1;
     if(!whenMatches(c.when)) return -1;
-    return s+(c.when==='any'?0:c.when==='gl'?30:c.when==='rz'?20:c.when==='early'?5:10);
+    return s+vsBonus+(c.when==='any'?0:c.when==='gl'?30:c.when==='rz'?20:c.when==='early'?5:10);
   };
   return PLAN.calls.map(c=>({c,s:score(c)})).filter(x=>x.s>=0).sort((a,b)=>b.s-a.s).map(x=>x.c);
 }
@@ -1033,13 +1055,15 @@ function callCardHTML(){
   const m=matchingCalls(); if(!m.length) return '';
   const c=m[0];
   const parts=[c.stunt&&`<div><span>Front / stunt</span><b>${esc(c.stunt)}</b></div>`,c.cov&&`<div><span>Coverage</span><b>${esc(c.cov)}</b></div>`].filter(Boolean).join('');
-  return `<div class="callcard"><div class="cc-top">Our call · ${esc(targetLabel(c.target))}${c.when!=='any'?' · '+esc(whenLabel(c.when)):''}</div>
+  const vh=vsHit(c);
+  return `<div class="callcard"><div class="cc-top">Our call${vh?` · vs ${esc(vh.p)} (${Math.round(vh.v*100)}% likely)`:''}${c.target!=='any'||!vh?' · '+esc(targetLabel(c.target)):''}${c.when!=='any'?' · '+esc(whenLabel(c.when)):''}</div>
     <div class="cc-calls">${parts}</div>${c.note?`<div class="cc-note">${esc(c.note)}</div>`:''}
     ${m.length>1?`<div class="cc-more">Also in the plan: ${m.slice(1,3).map(x=>esc([x.stunt,x.cov].filter(Boolean).join(' / '))+' ('+esc(targetLabel(x.target))+')').join(' · ')}</div>`:''}</div>`;
 }
 function callBarHTML(){
   const m=matchingCalls(); if(!m.length) return '';
-  return `<div class="rb-call">Call: ${esc([m[0].stunt,m[0].cov].filter(Boolean).join(' · '))}</div>`;
+  const vh=vsHit(m[0]);
+  return `<div class="rb-call">Call: ${esc([m[0].stunt,m[0].cov].filter(Boolean).join(' · '))}${vh?' · vs '+esc(vh.p):''}</div>`;
 }
 let pfSel=new Set(['any']);
 function pfLabel(){
@@ -1053,15 +1077,31 @@ function fillPlanForm(){
   const box=(v,label,cls='')=>`<label class="pf-cb ${cls}"><input type="checkbox" value="${esc(v)}" ${pfSel.has(v)?'checked':''}><span>${label}</span></label>`;
   $('pfGroups').innerHTML=`<div class="pfl-any">${box('any','Any formation <small>(default call)</small>','pf-all')}</div>`+
     groups.map(g=>`<div class="pfl-g"><div class="pfl-h">${esc(g.fam)}</div><div class="pfl-c">${box('fam:'+g.fam,'All '+esc(g.fam),'pf-all')}${g.forms.map(([f,n])=>box('form:'+f,`${esc(f)} <small>${n}</small>`)).join('')}</div></div>`).join('');
-  $('pfGroups').querySelectorAll('input').forEach(i=>i.onchange=()=>{ i.checked?pfSel.add(i.value):pfSel.delete(i.value); pfLabel(); });
+  $('pfGroups').querySelectorAll('input').forEach(i=>i.onchange=()=>{ if(i.checked){ pfSel.add(i.value); if(i.value!=='any'&&pfSel.has('any')){ pfSel.delete('any'); const a=$('pfGroups').querySelector('input[value="any"]'); if(a) a.checked=false; } } else pfSel.delete(i.value); pfLabel(); });
   $('pfWhen').innerHTML=WHENS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
   pfLabel();
 }
 function pfOpen(on){ $('pfList').hidden=!on; $('pfPick').setAttribute('aria-expanded',on); }
-$('pfPick').onclick=()=>pfOpen($('pfList').hidden);
+$('pfPick').onclick=()=>{ pfOpen($('pfList').hidden); if(!$('pfList').hidden) pvOpen(false); };
 $('pfDone').onclick=()=>pfOpen(false);
 $('pfClear').onclick=()=>{ pfSel.clear(); fillPlanForm(); };
+let pvSel=new Set();
+function pvLabel(){ const a=[...pvSel]; $('pvPickTxt').textContent=!a.length?'Any play':a.length<=2?a.join(', '):`${a.length} plays: ${a.slice(0,2).join(', ')}…`; }
+function fillPvList(){
+  const cnt={}; liveRows().forEach(r=>{ if(!r.play) return; const k=r.type+'|'+r.play; cnt[k]=(cnt[k]||0)+1; });
+  pvSel.forEach(p=>{ if(!Object.keys(cnt).some(k=>k.endsWith('|'+p))) cnt['Run|'+p]=0; });
+  const grp=tp=>Object.entries(cnt).filter(([k])=>k.startsWith(tp+'|')).map(([k,n])=>[k.slice(tp.length+1),n]).sort((a,b)=>b[1]-a[1]);
+  const box=(p,n)=>`<label class="pf-cb"><input type="checkbox" value="${esc(p)}" ${pvSel.has(p)?'checked':''}><span>${esc(p)} <small>${n}</small></span></label>`;
+  $('pvGroups').innerHTML=['Run','Pass'].map(tp=>{ const g=grp(tp); return g.length?`<div class="pfl-g"><div class="pfl-h">${tp==='Run'?'Their runs':'Their passes'}</div><div class="pfl-c">${g.map(([p,n])=>box(p,n)).join('')}</div></div>`:''; }).join('');
+  $('pvGroups').querySelectorAll('input').forEach(i=>i.onchange=()=>{ i.checked?pvSel.add(i.value):pvSel.delete(i.value); pvLabel(); });
+  pvLabel();
+}
+function pvOpen(on){ $('pvList').hidden=!on; $('pvPick').setAttribute('aria-expanded',on); if(on){ fillPvList(); pfOpen(false); } }
+$('pvPick').onclick=()=>pvOpen($('pvList').hidden);
+$('pvDone').onclick=()=>pvOpen(false);
+$('pvClear').onclick=()=>{ pvSel.clear(); fillPvList(); };
 function resetPlanForm(){
+  pvSel=new Set(); pvLabel(); pvOpen(false);
   editId=null; $('pfCancel').hidden=true;
   pfSel=new Set([S.form?'form:'+S.form:S.fam?'fam:'+S.fam:'any']);
   $('pfWhen').value='any'; $('pfStunt').value=''; $('pfCov').value=''; $('pfNote').value='';
@@ -1075,12 +1115,12 @@ function renderPlanList(){
   const order=c=>(c.target==='any'?2:c.target.startsWith('fam:')?1:0);
   const sorted=[...PLAN.calls].sort((a,b)=>targetLabel(a.target).localeCompare(targetLabel(b.target))||order(a)-order(b));
   host.innerHTML='<div class="plan-group">'+sorted.map(c=>`<div class="plan-row${hits.has(c.id)?' hit':''}">
-    <div class="pr-t">${esc(targetLabel(c.target))}<small>${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
+    <div class="pr-t">${esc(targetLabel(c.target))}<small>${vsOf(c).length?'vs '+esc(vsOf(c).join(', '))+' · ':''}${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
     <div class="pr-c">${c.stunt?`<b>Stunt:</b> ${esc(c.stunt)}`:''}${c.stunt&&c.cov?' · ':''}${c.cov?`<b>Cov:</b> ${esc(c.cov)}`:''}${c.note?`<br><span class="note">${esc(c.note)}</span>`:''}</div>
     <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`).join('')+'</div>';
   host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     const c=PLAN.calls.find(x=>x.id===b.dataset.edit); if(!c) return;
-    editId=c.id; pfSel=new Set([c.target]); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
+    editId=c.id; pfSel=new Set([c.target]); pvSel=new Set(vsOf(c)); pvLabel(); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
     $('pfSave').textContent='Save changes'; $('pfCancel').hidden=false; $('pfStunt').focus();
   });
   host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
@@ -1091,7 +1131,7 @@ function renderPlanList(){
 }
 $('planForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const base={when:$('pfWhen').value,stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
+  const base={when:$('pfWhen').value,vs:[...pvSel],stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
   const targets=[...pfSel];
   if(!targets.length){ pfOpen(true); return toast('Check at least one formation.'); }
   if(!base.stunt&&!base.cov) return toast('Enter a stunt or a coverage first.');
