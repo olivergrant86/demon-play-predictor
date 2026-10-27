@@ -568,7 +568,7 @@ function download(rows,name){
   try{ const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=COLS.map((c,i)=>({wch:i<2?22:Math.max(10,Math.min(26,c.length+2))})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Call sheet'); XLSX.writeFile(wb,name); $('dlNote').textContent=''; }
   catch(_){ $('dlNote').textContent='Downloads are blocked in this preview. Use the Vercel site to download.'; }
 }
-$('tplBtn').onclick=()=>download(sheetRows(null,true),'Demon call sheet template.xlsx');
+$('tplBtn').onclick=()=>{ const a=document.createElement('a'); a.href='Demons-call-sheet-template.xlsx'; a.download='Demons call sheet template.xlsx'; document.body.appendChild(a); a.click(); a.remove(); if(!PWA) $('dlNote').textContent='Downloads are blocked in this preview. Use the Vercel site to download.'; };
 $('exportBtn').onclick=()=>download(sheetRows(PLAN,false),`Call sheet${PLAN.example?'':' vs '+PLAN.name}.xlsx`);
 const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 function colFor(header){
@@ -586,14 +586,15 @@ function colFor(header){
   return null;
 }
 /* ---------- smart import: read a coach's own call sheet layout ---------- */
-const IMP_FILLER=new Set('DOWN DOWNS AND N & PLAYS PLAY CALLS CALL MENU YARDS YDS YARD YARDAGE TO THE OF ON SITUATION SITUATIONS OFFENSE OFFENSIVE OFF ZONE LINE TERRITORY - + DIST DISTANCE SITUATIONAL'.split(' '));
+const IMP_FILLER=new Set('DOWN DOWNS AND N & PLAYS PLAY CALLS CALL MENU YARDS YDS YARD YARDAGE TO THE OF ON SITUATION SITUATIONS OFFENSE OFFENSIVE OFF ZONE LINE TERRITORY - + DIST DISTANCE SITUATIONAL INSIDE OWN RUN CLOCK THEIR OUR'.split(' '));
 function impNorm(s){ return String(s||'').toUpperCase().replace(/[’']/g,'').replace(/[^A-Z0-9&+\- ]+/g,' ').replace(/\s+/g,' ').trim(); }
 // What a header cell means: a situation, a run/pass sub-header, a hash sub-header, or null for a play.
 function impHeader(raw){
-  const s=impNorm(raw); if(!s||s.length>34) return null;
+  const s=impNorm(raw).replace(/([A-Z])-|-([A-Z])/g,(m,a,b)=>(a||'')+' '+(b||'')).replace(/\s+/g,' ').trim(); if(!s||s.length>34) return null;
   const T=' '+s+' ';
   if(/^(RUNS?|RUN GAME|RUNNING GAME|DRAWS)$/.test(s)) return {kind:'type',type:'Run'};
   if(/^(PASS(ES)?|PASS GAME|PASSING GAME|DROPBACK|DROP BACK|QUICKS?|QUICK GAME|SCREENS?|PLAY ACTION|PA|BOOTS?|DEEP PASS|RPOS?)$/.test(s)) return {kind:'type',type:/^RPO/.test(s)?'Run':'Pass'};
+  if(/^(NOTES?|REMINDERS?|COACHING POINTS?|KEYS?)$/.test(s)) return {kind:'stop'};
   if(/^(LEFT|LT) HASH$/.test(s)) return {kind:'hash',hash:'L'};
   if(/^(RIGHT|RT) HASH$/.test(s)) return {kind:'hash',hash:'R'};
   if(/^(MIDDLE|MID|CENTER)( OF FIELD| HASH)?$/.test(s)) return {kind:'hash',hash:'M'};
@@ -661,7 +662,7 @@ function impAnalyze(grids){
       let num=null; const m=t.match(/^\s*(?:#\s*)?(\d{1,2})\s*[.)\-:]\s+(.+)$/); if(m){ num=+m[1]; t=m[2]; }
       t=t.replace(/^[•\-–*·]+\s*/,'').trim();
       if(t.length<2||t.length>48||/^\d+([.:\/-]\d+)*$/.test(t)) return;
-      if(/^(notes?|reminders?|keys?|remember|coach(es)?|watch|vs\b|week\b|date\b)\b/i.test(t)||/:\s*\S/.test(t)&&!/^\d/.test(t)||t.split(/\s+/).length>6) return;
+      if(/^(notes?|reminders?|keys?|remember|coach(es)?|watch|vs\b|week\b|date\b|opponent|opp\b|game\b|call sheet|demons? offense|duncan)\b/i.test(t)||/:\s*\S/.test(t)&&!/^\d/.test(t)||t.split(/\s+/).length>6) return;
       let use=st;
       if(st.script){ if(num!=null) st.numbered=true; else if(st.numbered) use={bucket:null,type:st.type,hash:st.hash,script:false}; }
       found.push({text:t,b:use.bucket?new Set(use.bucket):new Set(),type:use.type||null,hash:use.hash||null,script:use.script?(num??st.n++):null,...extra});
@@ -670,6 +671,35 @@ function impAnalyze(grids){
   grids.forEach(g=>{
     const H=g.map(row=>row.map(v=>{ const s=String(v??''); return s.startsWith('\u0000')?{merged:true,h:impHeader(s.slice(1))}:{h:impHeader(s)}; }));
     const used=new Set(), key=(r,c)=>r+','+c;
+    // Opponent label: "OPPONENT | Noble"
+    g.forEach((row,r)=>row.forEach((v,c)=>{ if(/^\s*(opponent|opp|vs\.?)\s*:?\s*$/i.test(String(v))){ for(let k=c+1;k<row.length;k++){ const x=String(row[k]??'').replace('\u0000','').trim(); if(x&&!/^_+$/.test(x)){ if(!title) title=x; used.add(key(r,k)); break; } } used.add(key(r,c)); } }));
+    // Section tables: a header row like "# | FORMATION | PLAY | R/P | HASH | ★" under a situation bar.
+    const COLK=s=>{ const n=impNorm(s); return /^(PLAY|PLAYS|PLAY CALL|CALL)$/.test(n)?'play':/^(FORM|FORMATION|FORMATIONS)$/.test(n)?'form':/^(R P|R\/P|RP|RUN PASS|TYPE)$/.test(n.replace('/',' ').trim())||/^R ?\/ ?P$/.test(String(s).trim().toUpperCase())?'type':/^HASH$/.test(n)?'hash':/^(PRI|PRIORITY|STARS?|RATING)$/.test(n)||/^★+$/.test(String(s).trim())?'stars':/^(#|NO|NUM)$/.test(String(s).trim().toUpperCase())?'num':null; };
+    g.forEach((row,r)=>{
+      const kinds=row.map(v=>COLK(String(v??'').replace('\u0000','')));
+      kinds.forEach((k,c)=>{ if(k!=='play') return;
+        // this table's columns: contiguous labeled cells around the PLAY cell
+        let a=c,z=c; while(a-1>=0&&kinds[a-1]) a--; while(z+1<kinds.length&&kinds[z+1]) z++;
+        const cm={}; for(let i=a;i<=z;i++){ cm[kinds[i]]=i; used.add(key(r,i)); }
+        // situation: nearest header above, in any of this table's columns
+        let sit=null;
+        for(let rr=r-1;rr>=0&&!sit;rr--) for(let i=a;i<=z;i++){ const h=(H[rr]||[])[i]; if(h&&h.h&&(h.h.kind==='bucket'||h.h.kind==='script')){ sit=h.h; for(let j=a;j<=z;j++) used.add(key(rr,j)); break; } }
+        const st={bucket:sit&&sit.kind==='bucket'?sit.b:null,script:!!(sit&&sit.kind==='script'),n:1};
+        let blank=0;
+        for(let rr=r+1;rr<g.length;rr++){
+          const cells=[]; for(let i=a;i<=z;i++) cells.push(String((g[rr]||[])[i]??'').replace('\u0000','').trim());
+          if(cells.some((x,i)=>{ const h=(H[rr]||[])[a+i]; return h&&h.h&&(h.h.kind==='bucket'||h.h.kind==='script'||h.h.kind==='stop'); })||cells.some(x=>COLK(x)==='play')) break;
+          for(let i=a;i<=z;i++) used.add(key(rr,i));
+          const pv=String((g[rr]||[])[cm.play]??'').trim();
+          if(!pv){ if(cells.every(x=>!x||/^\d+$/.test(x))){ if(++blank>=40) break; } continue; }
+          blank=0;
+          const fv=cm.form!=null?String(g[rr][cm.form]??'').trim():'', tv=cm.type!=null?String(g[rr][cm.type]??'').trim():'', hv=cm.hash!=null?String(g[rr][cm.hash]??'').trim():'', sv=cm.stars!=null?String(g[rr][cm.stars]??'').trim():'', nv=cm.num!=null?parseInt(g[rr][cm.num]):NaN;
+          found.push({text:(fv?fv+' ':'')+pv,form:fv,name:pv,b:new Set(st.bucket||[]),type:/^r/i.test(tv)?'Run':/^p/i.test(tv)?'Pass':null,
+            hash:/^l/i.test(hv)?'L':/^r/i.test(hv)?'R':/^m|^c/i.test(hv)?'M':null,stars:sv?Math.max(1,Math.min(3,(sv.match(/★/g)||[]).length||parseInt(sv)||2)):null,
+            script:st.script?(isNaN(nv)?st.n++:nv):null});
+        }
+      });
+    });
     // Row layout: "3RD SHORT | Power | Sneak | Stick"
     g.forEach((row,r)=>row.forEach((v,c)=>{
       const h=H[r][c].h; if(!h||h.kind!=='bucket'&&h.kind!=='script'||H[r][c].merged) return;
@@ -686,13 +716,15 @@ function impAnalyze(grids){
       const v=String((g[r]||[])[c]??''); if(!v.replace('\u0000','').trim()||used.has(key(r,c))) continue;
       const h=H[r][c].h, st=state[c];
       if(h){ if(!H[r][c].merged||true) headersSeen.push(v.replace('\u0000',''));
-        if(h.kind==='bucket'){ Object.assign(st,{bucket:h.b,type:null,hash:null,script:false,row:r}); }
-        else if(h.kind==='script'){ Object.assign(st,{bucket:null,type:null,hash:null,script:true,n:1,row:r}); }
+        if(h.kind==='bucket'){ Object.assign(st,{bucket:h.b,type:null,hash:null,script:false,stop:false,row:r}); }
+        else if(h.kind==='script'){ Object.assign(st,{bucket:null,type:null,hash:null,script:true,stop:false,n:1,row:r}); }
         else if(h.kind==='type') st.type=h.type; else if(h.kind==='hash') st.hash=h.hash;
+        else if(h.kind==='stop') Object.assign(st,{bucket:null,type:null,hash:null,script:false,stop:true,row:r});
         continue; }
       if(v.startsWith('\u0000')) continue;          // the rest of a merged play cell
+      if(st.stop) continue;
       let use=st;
-      if(!st.bucket&&!st.script){ for(let k=c-1;k>=0;k--){ const s2=state[k]; if((s2.bucket||s2.script)&&s2.row<=r){ use=s2; break; } } }
+      if(!st.bucket&&!st.script){ for(let k=c-1;k>=0;k--){ const s2=state[k]; if(s2.stop) break; if((s2.bucket||s2.script)&&s2.row<=r){ use=s2; break; } } }
       add(v,use);
     }
   });
@@ -703,7 +735,8 @@ function impBuild(found){
   const by=new Map(), script=[];
   found.forEach(f=>{
     const k=impNorm(f.text); let p=by.get(k);
-    if(!p){ const sp=impSplit(f.text), cl=impClassify(f.text); p={id:uid(),name:sp.name,form:sp.form,type:f.type||cl.type,sure:!!f.type||cl.sure,hash:f.hash||'any',stars:2,b:new Set()}; by.set(k,p); }
+    if(!p){ const sp=f.name!=null?{name:f.name,form:f.form||''}:impSplit(f.text), cl=impClassify(f.text); p={id:uid(),name:sp.name,form:sp.form,type:f.type||cl.type,sure:!!f.type||cl.sure,hash:f.hash||'any',stars:f.stars||2,b:new Set()}; by.set(k,p); }
+    else if(f.stars) p.stars=Math.max(p.stars,f.stars);
     f.b.forEach(x=>p.b.add(x)); if(f.type){ p.type=f.type; p.sure=true; } if(f.hash) p.hash=f.hash;
     if(f.script!=null) script.push([f.script,p.id]);
   });
@@ -738,7 +771,7 @@ async function importFile(f){
     if(!window.XLSX) throw new Error('The spreadsheet tool did not load. Check the signal and try again.');
     let grids;
     if(/\.(txt|tsv)$/i.test(f.name)){ grids=[(await f.text()).split(/\r?\n/).map(l=>l.split('\t'))]; }
-    else { const wb=XLSX.read(await f.arrayBuffer(),{cellStyles:false}); grids=wb.SheetNames.map(n=>impGrid(wb.Sheets[n])).filter(g=>g.some(r=>r.some(v=>String(v).trim()))); }
+    else { const wb=XLSX.read(await f.arrayBuffer(),{cellStyles:false}); grids=wb.SheetNames.filter(n=>!/how|instruction|read ?me|help|guide/i.test(n)).map(n=>impGrid(wb.Sheets[n])).filter(g=>g.some(r=>r.some(v=>String(v).trim()))); }
     if(!grids.length) throw new Error('That file looks empty.');
     const tpl=templateParse(grids[0]);
     let res, title='', headers=[], unplaced=[];

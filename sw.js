@@ -1,6 +1,6 @@
 // Offline support for Demon Play Predictor
 const V = 'dpp-v4';
-const CORE = ['./', './index.html', './offense.html', './xlsx.full.min.js', './manifest.webmanifest',
+const CORE = ['./', './index.html', './offense.html', './Demons-call-sheet-template.xlsx', './xlsx.full.min.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
