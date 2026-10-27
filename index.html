@@ -324,6 +324,13 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .ch-card.last::after{content:"Last used";align-self:flex-start;margin-top:auto;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;border:1px solid currentColor;border-radius:99px;padding:3px 8px;opacity:.7}
 .pf-note{grid-column:span 2}
 @media (max-width:760px){.pf-note{grid-column:1/-1}}
+.fbseg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.fbseg button{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.05em;border:0;background:var(--bg);color:var(--ink);padding:7px 4px;cursor:pointer;min-height:34px}
+.fbseg button+button{border-left:1px solid var(--line)}
+.fbseg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.fbseg button[data-fbv="Field"][aria-pressed="true"]{background:var(--fld);color:#fff}
+.fbseg button[data-fbv="Bdry"][aria-pressed="true"]{background:var(--bdy);color:#111}
+.fbseg button:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -440,7 +447,9 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
         <div id="pfGroups"></div>
       </div>
       <label class="pf"><span class="lbl">When</span><select id="pfWhen"></select></label>
-      <label class="pf"><span class="lbl">Front / stunt</span><input id="pfStunt" placeholder="e.g. Tex, Slant Strong" maxlength="40"></label>
+      <div class="pf"><span class="lbl">Play goes to</span>
+        <div class="fbseg" role="group" aria-label="Field or boundary"><button type="button" data-fbv="any" aria-pressed="true">Either</button><button type="button" data-fbv="Field" aria-pressed="false">Field</button><button type="button" data-fbv="Bdry" aria-pressed="false">Boundary</button></div>
+        <label class="lbl" for="pfStunt" style="margin:6px 0 0">Front / stunt</label><input id="pfStunt" placeholder="e.g. Tex, Slant Strong" maxlength="40"></div>
       <label class="pf"><span class="lbl">Coverage</span><input id="pfCov" placeholder="e.g. Cover 3 Buzz" maxlength="40"></label>
       <div class="pf"><span class="lbl">Vs. their play <span class="pf-hint">optional</span></span><button class="pf-pick" type="button" id="pvPick" aria-expanded="false" aria-controls="pvList"><span id="pvPickTxt">Any play</span><span aria-hidden="true">▾</span></button></div>
       <div class="pf-list" id="pvList" hidden>
@@ -816,10 +825,11 @@ function predict(){
   const fbOf=name=>{ let f=0,b=0,n=0; sc.forEach(({r,w})=>{ if(r.play!==name) return; const v=String(r.fb||'').toUpperCase()[0]; if(v==='F'){f+=w;n++;} else if(v==='B'){b+=w;n++;} });
     if(!n||f+b<=0) return null; const pf=f/(f+b); return pf>=.5?{s:'Field',p:pf,n}:{s:'Bdry',p:1-pf,n}; };
   ['Run','Pass'].forEach(tp=>bySide[tp].list.forEach(x=>{ x.fb=fbOf(x.p); }));
+  const fbAll=(()=>{ let f=0,b=0,n=0; sc.forEach(({r,w})=>{ const v=String(r.fb||'').toUpperCase()[0]; if(v==='F'){f+=w;n++;} else if(v==='B'){b+=w;n++;} }); if(!n) return null; const pf=f/(f+b); return pf>=.5?{s:'Field',p:pf,n}:{s:'Bdry',p:1-pf,n}; })();
   const dir=blendAgg(r=>r.dir);
   const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
   const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2);
-  return {sc,eff,type,plays,allPlays,bySide,dir,gain,exact,pool:pool.length};
+  return {sc,eff,type,plays,allPlays,bySide,fbOf,fbAll,dir,gain,exact,pool:pool.length};
 }
 function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
 const ord=d=>['1st','2nd','3rd','4th'][d-1];
@@ -1039,16 +1049,24 @@ function vsHit(c){
   vsOf(c).forEach(name=>{
     const x=LASTP.allPlays.find(p=>p.p===name); if(!x) return;
     const side=(LASTP.bySide[x.t]||{list:[]}).list.slice(0,3).some(p=>p.p===name);
-    if((x.v>=0.08||side)&&(!best||x.v>best.v)) best={p:name,v:x.v,t:x.t};
+    if(!(x.v>=0.08||side)) return;
+    const fb=LASTP.fbOf?LASTP.fbOf(name):null;
+    if(c.fb&&c.fb!=='any'&&(!fb||fb.s!==c.fb)) return;   // only when that play leans to the side you picked
+    if(!best||x.v>best.v) best={p:name,v:x.v,t:x.t,fb};
   });
   return best;
 }
+// For calls without a play: does the situation as a whole lean to the picked side?
+function fbOk(c){ if(!c.fb||c.fb==='any'||vsOf(c).length) return true; const a=LASTP&&LASTP.fbAll; return !!(a&&a.s===c.fb); }
+const fbWord=s=>s==='Field'?'to the field':'to the boundary';
 function matchingCalls(){
   if(!PLAN.calls.length) return [];
   const fam=S.form?famOfForm(S.form):S.fam;
   const score=c=>{
     let s, vsBonus=0;
     if(vsOf(c).length){ const h=vsHit(c); if(!h) return -1; vsBonus=250+h.v*100; }
+    if(!fbOk(c)) return -1;
+    if(c.fb&&c.fb!=='any') vsBonus+=20;
     if(S.form&&c.target==='form:'+S.form) s=300;
     else if(fam&&c.target==='fam:'+fam) s=200;
     else if(c.target==='any') s=100;
@@ -1065,14 +1083,15 @@ function callCardHTML(){
   const c=m[0];
   const parts=[c.stunt&&`<div><span>Front / stunt</span><b>${esc(c.stunt)}</b></div>`,c.cov&&`<div><span>Coverage</span><b>${esc(c.cov)}</b></div>`].filter(Boolean).join('');
   const vh=vsHit(c);
-  return `<div class="callcard"><div class="cc-top">Our call${vh?` · vs ${esc(vh.p)} (${Math.round(vh.v*100)}% likely)`:''}${c.target!=='any'||!vh?' · '+esc(targetLabel(c.target)):''}${c.when!=='any'?' · '+esc(whenLabel(c.when)):''}</div>
+  const fbTxt=c.fb&&c.fb!=='any'?(vh&&vh.fb?` ${fbWord(c.fb)} ${Math.round(vh.fb.p*100)}%`:LASTP&&LASTP.fbAll?` · ${fbWord(c.fb)} ${Math.round(LASTP.fbAll.p*100)}%`:''):'';
+  return `<div class="callcard"><div class="cc-top">Our call${vh?` · vs ${esc(vh.p)}${fbTxt} · ${Math.round(vh.v*100)}% likely`:fbTxt}${c.target!=='any'||!vh?' · '+esc(targetLabel(c.target)):''}${c.when!=='any'?' · '+esc(whenLabel(c.when)):''}</div>
     <div class="cc-calls">${parts}</div>${c.note?`<div class="cc-note">${esc(c.note)}</div>`:''}
     ${m.length>1?`<div class="cc-more">Also in the plan: ${m.slice(1,3).map(x=>esc([x.stunt,x.cov].filter(Boolean).join(' / '))+' ('+esc(targetLabel(x.target))+')').join(' · ')}</div>`:''}</div>`;
 }
 function callBarHTML(){
   const m=matchingCalls(); if(!m.length) return '';
   const vh=vsHit(m[0]);
-  return `<div class="rb-call">Call: ${esc([m[0].stunt,m[0].cov].filter(Boolean).join(' · '))}${vh?' · vs '+esc(vh.p):''}</div>`;
+  return `<div class="rb-call">Call: ${esc([m[0].stunt,m[0].cov].filter(Boolean).join(' · '))}${vh?' · vs '+esc(vh.p):''}${m[0].fb&&m[0].fb!=='any'?' '+(m[0].fb==='Field'?'(field)':'(bdry)'):''}</div>`;
 }
 let pfSel=new Set(['any']);
 function pfLabel(){
@@ -1094,7 +1113,10 @@ function pfOpen(on){ $('pfList').hidden=!on; $('pfPick').setAttribute('aria-expa
 $('pfPick').onclick=()=>{ pfOpen($('pfList').hidden); if(!$('pfList').hidden) pvOpen(false); };
 $('pfDone').onclick=()=>pfOpen(false);
 $('pfClear').onclick=()=>{ pfSel.clear(); fillPlanForm(); };
-let pvSel=new Set();
+let pvSel=new Set(), pfFb='any';
+function fbSegUI(){ document.querySelectorAll('[data-fbv]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fbv===pfFb)); }
+document.querySelectorAll('[data-fbv]').forEach(b=>b.onclick=()=>{ pfFb=b.dataset.fbv; fbSegUI(); });
+let pvSelInit=null;
 function pvLabel(){ const a=[...pvSel]; $('pvPickTxt').textContent=!a.length?'Any play':a.length<=2?a.join(', '):`${a.length} plays: ${a.slice(0,2).join(', ')}…`; }
 function fillPvList(){
   const cnt={}; liveRows().forEach(r=>{ if(!r.play) return; const k=r.type+'|'+r.play; cnt[k]=(cnt[k]||0)+1; });
@@ -1110,7 +1132,7 @@ $('pvPick').onclick=()=>pvOpen($('pvList').hidden);
 $('pvDone').onclick=()=>pvOpen(false);
 $('pvClear').onclick=()=>{ pvSel.clear(); fillPvList(); };
 function resetPlanForm(){
-  pvSel=new Set(); pvLabel(); pvOpen(false);
+  pvSel=new Set(); pvLabel(); pvOpen(false); pfFb='any'; fbSegUI();
   editId=null; $('pfCancel').hidden=true;
   pfSel=new Set([S.form?'form:'+S.form:S.fam?'fam:'+S.fam:'any']);
   $('pfWhen').value='any'; $('pfStunt').value=''; $('pfCov').value=''; $('pfNote').value='';
@@ -1124,12 +1146,12 @@ function renderPlanList(){
   const order=c=>(c.target==='any'?2:c.target.startsWith('fam:')?1:0);
   const sorted=[...PLAN.calls].sort((a,b)=>targetLabel(a.target).localeCompare(targetLabel(b.target))||order(a)-order(b));
   host.innerHTML='<div class="plan-group">'+sorted.map(c=>`<div class="plan-row${hits.has(c.id)?' hit':''}">
-    <div class="pr-t">${esc(targetLabel(c.target))}<small>${vsOf(c).length?'vs '+esc(vsOf(c).join(', '))+' · ':''}${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
+    <div class="pr-t">${esc(targetLabel(c.target))}<small>${vsOf(c).length?'vs '+esc(vsOf(c).join(', '))+' · ':''}${c.fb&&c.fb!=='any'?fbWord(c.fb)+' · ':''}${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
     <div class="pr-c">${c.stunt?`<b>Stunt:</b> ${esc(c.stunt)}`:''}${c.stunt&&c.cov?' · ':''}${c.cov?`<b>Cov:</b> ${esc(c.cov)}`:''}${c.note?`<br><span class="note">${esc(c.note)}</span>`:''}</div>
     <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`).join('')+'</div>';
   host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     const c=PLAN.calls.find(x=>x.id===b.dataset.edit); if(!c) return;
-    editId=c.id; pfSel=new Set([c.target]); pvSel=new Set(vsOf(c)); pvLabel(); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
+    editId=c.id; pfSel=new Set([c.target]); pvSel=new Set(vsOf(c)); pvLabel(); pfFb=c.fb||'any'; fbSegUI(); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
     $('pfSave').textContent='Save changes'; $('pfCancel').hidden=false; $('pfStunt').focus();
   });
   host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
@@ -1140,7 +1162,7 @@ function renderPlanList(){
 }
 $('planForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const base={when:$('pfWhen').value,vs:[...pvSel],stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
+  const base={when:$('pfWhen').value,vs:[...pvSel],fb:pfFb,stunt:$('pfStunt').value.trim(),cov:$('pfCov').value.trim(),note:$('pfNote').value.trim()};
   const targets=[...pfSel];
   if(!targets.length){ pfOpen(true); return toast('Check at least one formation.'); }
   if(!base.stunt&&!base.cov) return toast('Enter a stunt or a coverage first.');
