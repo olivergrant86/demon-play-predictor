@@ -299,6 +299,24 @@ td.m{font-family:var(--mono);font-size:12px}
 .pf-cb:has(input:checked){border-color:var(--red);background:var(--redsoft)}
 .pf-all{border-style:dashed}
 @media (max-width:560px){.pfl-g{grid-template-columns:1fr}.pfl-h{padding-top:0}}
+a.btn{text-decoration:none;display:inline-flex;align-items:center}
+.chooser{position:fixed;inset:0;z-index:80;background:var(--bg);overflow:auto;display:grid;place-items:center;
+  padding:calc(24px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.ch-in{width:min(860px,100%);display:flex;flex-direction:column;gap:14px}
+.ch-title{font:800 clamp(40px,7vw,72px)/.95 var(--display);text-transform:uppercase;margin:0;letter-spacing:.01em}
+.ch-title span{color:var(--red)}
+.ch-sub{font:700 18px var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.ch-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:8px}
+@media (max-width:640px){.ch-cards{grid-template-columns:1fr}}
+.ch-card{display:flex;flex-direction:column;gap:8px;text-align:left;text-decoration:none;color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:14px;padding:22px;cursor:pointer;font:inherit;min-height:200px}
+.ch-card:hover,.ch-card:focus-visible{border-color:var(--red);outline:none}
+.ch-card .ch-k{font:800 15px var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--red)}
+.ch-card b{font:800 clamp(34px,5vw,48px)/1 var(--display);text-transform:uppercase}
+.ch-card span:last-child{color:var(--muted);font-size:15px;line-height:1.4}
+.ch-card.off{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ch-card.off span:last-child{color:var(--bg);opacity:.75}
+.ch-card.off .ch-k{color:#ff4d63}
+.ch-card.last::after{content:"Last used";align-self:flex-start;margin-top:auto;font:700 11px var(--display);letter-spacing:.12em;text-transform:uppercase;border:1px solid currentColor;border-radius:99px;padding:3px 8px;opacity:.7}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -344,6 +362,16 @@ td.m{font-family:var(--mono);font-size:12px}
 @media (prefers-reduced-motion:reduce){.split div{transition:none}}
 </style>
 
+<div class="chooser" id="chooser" hidden role="dialog" aria-label="Pick a side">
+  <div class="ch-in">
+    <h1 class="ch-title">Demon <span>Football</span></h1>
+    <p class="ch-sub">Which side are you working tonight?</p>
+    <div class="ch-cards">
+      <button class="ch-card def" type="button" id="goDef"><span class="ch-k">Defense</span><b>Play Predictor</b><span>Predict their next play from Hudl film, with your stunt and coverage calls.</span></button>
+      <a class="ch-card off" href="offense.html" id="goOff"><span class="ch-k">Offense</span><b>Play Caller</b><span>Load your call sheet and get a play called for the down, distance, spot, score and clock.</span></a>
+    </div>
+  </div>
+</div>
 </head><body>
 <div class="wrap">
   <div class="pbbar" id="pbBar">
@@ -366,6 +394,7 @@ td.m{font-family:var(--mono);font-size:12px}
       <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <button class="btn" id="resetData" hidden>Use sample data</button>
       <button class="btn" id="clearSit">Clear situation</button>
+      <a class="btn" href="offense.html" id="toOff">Offense side →</a>
       <button class="btn btn-ink" id="pbBtn">Press box mode</button>
       <button class="btn" id="readyBtn">Ready check</button>
       <button class="btn gbtn" type="button" data-garbage-btn aria-pressed="true" hidden>Garbage time</button>
@@ -890,6 +919,18 @@ async function runReady(){
 function openReady(){ const p=$('readyPanel'); p.hidden=false; p.scrollIntoView({block:'nearest'}); runReady(); }
 $('readyBtn').onclick=openReady; $('pbReady').onclick=openReady;
 $('readyRerun').onclick=runReady; $('readyClose').onclick=()=>{ $('readyPanel').hidden=true; };
+
+/* ---------- side chooser ---------- */
+(function(){
+  let seen=false; try{ seen=sessionStorage.getItem('dpp-side')==='def'; }catch(_){}
+  if(location.hash==='#defense') seen=true;
+  if(!seen) $('chooser').hidden=false;
+  const pick=()=>{ $('chooser').hidden=true; try{ sessionStorage.setItem('dpp-side','def'); localStorage.setItem('dpp-last-side','def'); }catch(_){} };
+  $('goDef').onclick=pick;
+  $('goOff').addEventListener('click',()=>{ try{ localStorage.setItem('dpp-last-side','off'); }catch(_){} });
+  let last=''; try{ last=localStorage.getItem('dpp-last-side')||''; }catch(_){}
+  if(last) (last==='off'?$('goOff'):$('goDef')).classList.add('last');
+})();
 
 /* ---------- press box mode ---------- */
 const fieldHome=$('fieldWrap').parentElement;

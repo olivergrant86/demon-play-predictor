@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Demon Play Caller</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<script src="xlsx.full.min.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#c8102e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Play Predictor">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+/* Layout: sideline call console — situation controls on the left, the call on the right (call pinned on top on phones). */
+:root{
+  --bg:#f3f1f1; --panel:#ffffff; --ink:#151112; --muted:#6b6164; --line:#ddd6d7;
+  --red:#c8102e; --red-ink:#ffffff; --redsoft:#fbe7ea;
+  --run:#c8102e; --pass:#1f1a1b; --good:#2f8f4e; --warn:#d99a00;
+  --display:"Saira Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#110e0f; --panel:#1c1718; --ink:#f4eeef; --muted:#a8999c; --line:#352c2e;
+  --red:#e0243f; --red-ink:#ffffff; --redsoft:#3a1b20; --run:#e0243f; --pass:#f4eeef; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#110e0f; --panel:#1c1718; --ink:#f4eeef; --muted:#a8999c; --line:#352c2e;
+  --red:#e0243f; --red-ink:#ffffff; --redsoft:#3a1b20; --run:#e0243f; --pass:#f4eeef; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 32px}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font:800 30px/1 var(--display);letter-spacing:.02em;margin:0;text-transform:uppercase}
+.brand h1 span{color:var(--red)}
+.vs{font:500 17px var(--display);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.vs b{color:var(--ink)}
+.hdr-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font:600 13px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:8px 12px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--ink)}
+.btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
+.btn-ink{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.btn:focus-visible,.chip:focus-visible,.step:focus-visible,.kp-grid button:focus-visible,.segb:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.lbl{font:700 12px var(--display);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 6px}
+.note{font-size:13px;color:var(--muted);line-height:1.45;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 14px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:8px 11px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;justify-content:center;min-height:42px}
+.chip[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:var(--red-ink)}
+.step{font:700 18px var(--display);min-width:44px;height:42px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;cursor:pointer}
+.empty{padding:16px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);text-align:center;margin:0}
+/* situation */
+.spot{font:800 26px/1 var(--display);text-transform:uppercase}
+.spot small{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
+.ydwrap{display:flex;gap:8px;align-items:stretch}
+.seg{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:70px}
+.segb{flex:1;font:800 17px var(--display);text-transform:uppercase;letter-spacing:.04em;padding:0 14px;border:0;background:var(--bg);color:var(--ink);cursor:pointer}
+.segb+.segb{border-top:1px solid var(--line)}
+.segb[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.kp-show{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:78px;border:2px solid var(--red);border-radius:8px;background:var(--panel);line-height:1;padding:4px 8px}
+.kp-show span{font:700 11px var(--display);letter-spacing:.12em;color:var(--muted)}
+.kp-show b{font:800 32px var(--display);font-variant-numeric:tabular-nums}
+.kp-show b.typing{color:var(--red)}
+.kp-grid{display:grid;grid-template-columns:repeat(5,48px);grid-auto-rows:44px;gap:5px}
+.kp-grid button{font:800 22px var(--display);border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);cursor:pointer;touch-action:manipulation}
+.kp-grid button:active{background:var(--red);color:var(--red-ink)}
+.hashcol{display:grid;grid-template-rows:repeat(3,1fr);gap:5px;min-width:96px}
+.hashcol .chip{font:800 17px var(--display);text-transform:uppercase;min-height:0;padding:4px 10px}
+.row2{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:end}
+.downs .chip{font:800 22px var(--display);min-width:52px}
+.dist{display:flex;align-items:center;gap:6px}
+.dist output{font:800 30px var(--display);min-width:64px;text-align:center}
+.distchips{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px}
+.distchips .chip{font:800 20px var(--display);min-height:50px;padding:0}
+.gamerow{display:flex;flex-direction:column;gap:12px}
+.qtrs .chip{font:800 19px var(--display);min-width:48px}
+.score{display:flex;gap:10px;flex-wrap:wrap}
+.sc{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg)}
+.sc .who{font:800 14px var(--display);letter-spacing:.08em;text-transform:uppercase;min-width:52px}
+.sc output{font:800 28px var(--display);min-width:40px;text-align:center;font-variant-numeric:tabular-nums}
+.sc .step{min-width:38px;height:38px}
+.sc .plus{font:700 13px var(--display);min-width:38px;height:38px}
+.modes .chip{font:800 16px var(--display);text-transform:uppercase;letter-spacing:.03em}
+.suggest{font-size:13px;color:var(--warn);font-weight:600;margin:6px 0 0}
+@media (max-width:560px){
+  .ydwrap{flex-wrap:wrap;width:100%}
+  .kp-show{display:none}
+  .kp-grid{flex:1;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:48px}
+  .hashcol{order:3;width:100%;grid-template-rows:none;grid-template-columns:repeat(3,1fr)}
+  .hashcol .chip{min-height:48px}
+  .distchips{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .row2,.gamerow{grid-template-columns:1fr}
+}
+/* the call */
+.callp{gap:12px}
+.sit{font:700 14px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.callcard{border-radius:12px;background:var(--ink);color:var(--bg);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.callcard .k{font:800 13px var(--display);letter-spacing:.16em;text-transform:uppercase;color:#ff4d63}
+.callcard .play{font:800 clamp(40px,5.4vw,66px)/1 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
+.callcard .form{font:700 20px var(--display);text-transform:uppercase;letter-spacing:.04em;opacity:.85}
+.tag{font:700 11px var(--mono);padding:3px 6px;border-radius:3px;display:inline-block;vertical-align:middle}
+.tag.Run{background:var(--run);color:#fff}
+.tag.Pass{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.callcard .tag.Pass{background:#fff;color:#111;border:0}
+.why{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.why span{font:600 12px var(--body);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:3px 9px}
+.callbtns{display:flex;gap:8px;flex-wrap:wrap}
+.callbtns .btn{font-size:15px;padding:12px 16px}
+.script{border:2px dashed var(--red);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.script .sc-t{flex:1 1 260px;min-width:0}
+.script b{font:800 22px var(--display);text-transform:uppercase}
+.script .k{font:800 12px var(--display);letter-spacing:.14em;color:var(--red);text-transform:uppercase}
+.alts{display:flex;flex-direction:column;gap:6px}
+.alt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
+.alt b{font:800 19px var(--display);text-transform:uppercase}
+.alt small{display:block;color:var(--muted);font-size:12px}
+.result{border:2px solid var(--red);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.result .chips .chip{font:800 16px var(--display);text-transform:uppercase}
+.res-good{border-color:var(--good)!important}
+.res-bad{border-color:var(--red)!important}
+.tonight{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat b{display:block;font:800 22px var(--display)}
+.stat span{font-size:12px;color:var(--muted)}
+.log{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th{font:700 11px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.res{font:700 11px var(--display);letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:99px;border:1px solid var(--line)}
+.res.big,.res.td{background:var(--good);color:#fff;border-color:var(--good)}
+.res.good{color:var(--good);border-color:var(--good)}
+.res.bad,.res.to{background:var(--red);color:#fff;border-color:var(--red)}
+.minicall{display:none}
+@media (max-width:900px){
+  .minicall{display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 12px;align-items:center;gap:12px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--bg)}
+  .minicall .mc-k{font:800 11px var(--display);letter-spacing:.14em;color:#ff4d63;text-transform:uppercase}
+  .minicall b{font:800 26px/1 var(--display);text-transform:uppercase;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .minicall .mc-m{flex:1;min-width:0}
+  .minicall .btn{background:transparent;color:var(--bg);border-color:rgba(255,255,255,.4)}
+}
+/* call sheet editor */
+.sheetp .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.planbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.planbar input,.pf input,.pf select{font:500 15px var(--body);padding:9px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:42px}
+.pform{display:grid;grid-template-columns:2fr 1.4fr 1fr 1fr 1fr;gap:10px;align-items:end}
+.pf{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pf .lbl{margin:0}
+.pf input,.pf select{width:100%}
+.pf-wide{grid-column:1/-1}
+@media (max-width:760px){.pform{grid-template-columns:1fr 1fr}}
+.bucks{display:flex;flex-wrap:wrap;gap:6px}
+.cb{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:6px;padding:7px 10px;background:var(--bg);cursor:pointer;font:600 14px var(--body);min-height:40px}
+.cb input{width:19px;height:19px;accent-color:var(--red);margin:0}
+.cb:has(input:checked){border-color:var(--red);background:var(--redsoft)}
+.pf-act{display:flex;gap:8px;flex-wrap:wrap}
+.sheet-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.blist{display:flex;flex-direction:column;gap:12px}
+.bgrp h3{font:800 18px var(--display);text-transform:uppercase;margin:0 0 6px;display:flex;gap:8px;align-items:baseline}
+.bgrp h3 small{font:500 12px var(--body);color:var(--muted);text-transform:none}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.prow + .prow{margin-top:6px}
+.prow b{font:800 17px var(--display);text-transform:uppercase}
+.prow small{display:block;color:var(--muted);font-size:12px}
+.prow .pf-act .btn{padding:6px 9px;font-size:11px}
+.stars{color:var(--warn);letter-spacing:1px}
+.srow{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.srow + .srow{margin-top:6px}
+.srow .n{font:800 20px var(--display);color:var(--red)}
+.srow.done{opacity:.5}
+.example{background:var(--warn);color:#111;border-radius:8px;padding:8px 12px;font-weight:600;font-size:14px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
+</style>
+
+</head><body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Demon <span>Play</span> Caller</h1>
+      <div class="vs">Offense · <b id="planName">—</b> · <span id="planInfo"></span></div>
+    </div>
+    <div class="hdr-ctl">
+      <a class="btn" href="index.html#defense">← Defense side</a>
+      <button class="btn btn-red" id="sheetBtn" type="button">Call sheet</button>
+      <button class="btn" id="newGame" type="button">New game</button>
+      <button class="btn" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
+    </div>
+  </header>
+
+  <section class="panel sheetp" id="sheetPanel" hidden aria-label="Call sheet">
+    <div class="head">
+      <div><p class="lbl">Call sheet for the week</p>
+        <p class="note">Add each play with the situations you'd call it in. Stars are how much you like it this week. Or fill in the spreadsheet template and upload it.</p></div>
+      <div class="pf-act"><button class="btn" id="sheetClose" type="button">Close</button></div>
+    </div>
+    <div class="planbar">
+      <label class="lbl" for="planInput" style="margin:0">Opponent</label>
+      <input id="planInput" placeholder="e.g. Lawton" maxlength="40">
+      <button class="btn" id="planOpen" type="button">Open / start</button>
+      <span class="note" id="cloudNote"></span>
+    </div>
+    <div class="planbar">
+      <button class="btn" id="tplBtn" type="button">Download template</button>
+      <button class="btn" id="exportBtn" type="button">Download my call sheet</button>
+      <label class="btn btn-ink" for="sheetFile">Upload call sheet</label>
+      <input id="sheetFile" type="file" accept=".xlsx,.xls,.csv" hidden>
+      <button class="btn" id="undoUpload" type="button" hidden>Undo upload</button>
+      <span class="note" id="dlNote"></span>
+    </div>
+    <form class="pform" id="playForm" autocomplete="off">
+      <label class="pf"><span class="lbl">Play</span><input id="pName" placeholder="e.g. Inside Zone" maxlength="40" required></label>
+      <label class="pf"><span class="lbl">Formation</span><input id="pForm" placeholder="e.g. Doubles Rt" maxlength="30"></label>
+      <label class="pf"><span class="lbl">Run / Pass</span><select id="pType"><option>Run</option><option>Pass</option></select></label>
+      <label class="pf"><span class="lbl">Best on</span><select id="pHash"><option value="any">Any hash</option><option value="L">Left hash</option><option value="M">Middle</option><option value="R">Right hash</option></select></label>
+      <label class="pf"><span class="lbl">Priority</span><select id="pStars"><option value="1">★ Have it</option><option value="2" selected>★★ Like it</option><option value="3">★★★ Love it</option></select></label>
+      <div class="pf pf-wide"><span class="lbl">Call it on (check all that fit)</span><div class="bucks" id="pBucks"></div></div>
+      <div class="pf-act pf-wide"><button class="btn btn-red" type="submit" id="pSave">Add play</button><button class="btn" type="button" id="pCancel" hidden>Cancel edit</button></div>
+    </form>
+    <div class="sheet-tabs" id="sheetTabs"></div>
+    <div id="sheetList"></div>
+  </section>
+
+  <div class="minicall" id="minicall" aria-live="polite"></div>
+
+  <div class="grid">
+    <section class="panel" aria-label="Situation">
+      <div class="spot" id="spotTxt">Own 25<small>Left hash</small></div>
+      <div class="ydwrap">
+        <div class="seg" role="group" aria-label="Side of the field"><button class="segb" type="button" id="sideOwn">Own</button><button class="segb" type="button" id="sideOpp">Opp</button></div>
+        <div class="kp-show"><span id="kpSide">OWN</span><b id="kpNum">25</b></div>
+        <div class="kp-grid" id="keypad" role="group" aria-label="Yard line keypad">
+          <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="4">4</button><button type="button" data-k="5">5</button>
+          <button type="button" data-k="6">6</button><button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="0">0</button>
+        </div>
+        <div class="hashcol" id="hashChips" role="group" aria-label="Hash"></div>
+      </div>
+      <div class="row2">
+        <div><p class="lbl">Down</p><div class="chips downs" id="downChips"></div></div>
+        <div><p class="lbl">Distance</p><div class="dist"><button class="step" id="dMinus" type="button" aria-label="Less distance">−</button><output id="distOut">10</output><button class="step" id="dPlus" type="button" aria-label="More distance">+</button></div></div>
+      </div>
+      <div class="chips distchips" id="distChips" role="group" aria-label="Distance"></div>
+      <div class="gamerow">
+        <div><p class="lbl">Quarter</p><div class="chips qtrs" id="qtrChips"></div></div>
+        <div><p class="lbl">Score</p>
+          <div class="score">
+            <div class="sc"><span class="who">Demons</span><button class="step" type="button" data-sc="us" data-d="-1" aria-label="Demons minus 1">−</button><output id="scUs">0</output><button class="step" type="button" data-sc="us" data-d="1" aria-label="Demons plus 1">+</button><button class="step plus" type="button" data-sc="us" data-d="7">+7</button><button class="step plus" type="button" data-sc="us" data-d="3">+3</button></div>
+            <div class="sc"><span class="who">Them</span><button class="step" type="button" data-sc="them" data-d="-1" aria-label="Them minus 1">−</button><output id="scThem">0</output><button class="step" type="button" data-sc="them" data-d="1" aria-label="Them plus 1">+</button><button class="step plus" type="button" data-sc="them" data-d="7">+7</button><button class="step plus" type="button" data-sc="them" data-d="3">+3</button></div>
+          </div>
+        </div>
+      </div>
+      <div><p class="lbl">Clock</p><div class="chips modes" id="modeChips"></div><p class="suggest" id="suggest" hidden></p></div>
+    </section>
+
+    <section class="panel callp" aria-label="The call" id="callPanel"></section>
+  </div>
+</div>
+<div id="toast" hidden></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3500);}
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(_){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(_){}}};
+const DB="https://demon-play-predictor-default-rtdb.firebaseio.com", PWA=true;
+const ord=d=>['1st','2nd','3rd','4th'][d-1];
+const HASHN={L:'Left hash',M:'Middle',R:'Right hash'};
+
+/* ---------- situations a play can be called in ---------- */
+const BUCKETS=[
+  ['1st','1st down'],['2s','2nd & short (1-3)'],['2m','2nd & medium (4-6)'],['2l','2nd & long (7+)'],
+  ['3s','3rd/4th & short (1-3)'],['3m','3rd/4th & medium (4-6)'],['3l','3rd/4th & long (7+)'],
+  ['rz','Red zone (inside 20)'],['gl','Goal line (inside 5)'],['bu','Backed up (inside own 10)'],
+  ['shot','Shot play'],['2min','Two-minute'],['4min','Four-minute (run clock)']
+];
+const BN=Object.fromEntries(BUCKETS);
+
+/* ---------- plans (one call sheet per opponent) ---------- */
+const slug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'plan';
+const uid=()=>Math.random().toString(36).slice(2,9);
+const EXAMPLE={name:'Example week',example:true,t:0,plays:[
+  ['Inside Zone','Doubles','Run','any',3,['1st','2s','2m','3s','4min']],
+  ['Power','Trips','Run','any',2,['1st','2s','3s','gl','4min']],
+  ['Counter','Pistol Wing','Run','any',2,['1st','2m','rz']],
+  ['Jet Sweep','Trips','Run','L',2,['1st','2m','2l']],
+  ['QB Power','Empty','Run','any',2,['3s','gl','rz']],
+  ['Stick','Trips','Pass','any',3,['2m','3m','3s','2min']],
+  ['Mesh','Bunch','Pass','any',2,['2l','3l','3m','2min']],
+  ['Smash','Doubles','Pass','R',2,['2l','3l','rz']],
+  ['Four Verts','Doubles','Pass','M',2,['2l','3l','2min']],
+  ['PA Boot','Doubles','Pass','any',2,['1st','shot','rz']],
+  ['PA Post','Pistol','Pass','any',3,['shot','1st']],
+  ['RB Screen','Trips','Pass','any',1,['2l','3l']],
+  ['Fade','Trips','Pass','any',2,['gl','rz','2min']],
+  ['Sneak','Jumbo','Run','any',1,['3s','gl']],
+  ['Bubble','Trips','Pass','any',1,['1st','2l']]
+].map(([name,form,type,hash,stars,b])=>({id:uid(),name,form,type,hash,stars,b})),script:[]};
+EXAMPLE.script=[EXAMPLE.plays[0].id,EXAMPLE.plays[5].id,EXAMPLE.plays[9].id];
+
+let PLAN=ls.get('dpo-plan',null)||JSON.parse(JSON.stringify(EXAMPLE));
+function savePlan(push=true){ PLAN.t=Date.now(); ls.set('dpo-plan',PLAN); if(!PLAN.example) ls.set('dpo-plan:'+slug(PLAN.name),PLAN); if(push) pushPlan(); headerUI(); }
+function headerUI(){ $('planName').textContent=PLAN.example?'Example call sheet':'vs '+PLAN.name; $('planInfo').textContent=PLAN.plays.length+' plays'+(PLAN.script.length?' · '+PLAN.script.length+' scripted':''); }
+
+/* cloud backup, newest wins */
+const planUrl=n=>DB.replace(/\/$/,'')+'/rooms/oplan_'+slug(n)+'.json';
+let cloud='';
+function cloudNote(){ $('cloudNote').textContent=!DB||PLAN.example?'':cloud==='ok'?'✓ Backed up online':cloud==='off'?'Not backed up (no signal)':''; }
+function pushPlan(){ if(!DB||PLAN.example) return; fetch(planUrl(PLAN.name),{method:'PUT',body:JSON.stringify(PLAN)}).then(r=>{cloud=r.ok?'ok':'off';cloudNote();}).catch(()=>{cloud='off';cloudNote();}); }
+function pullPlan(name){
+  if(!DB) return Promise.resolve(null);
+  return fetch(planUrl(name)).then(r=>r.json()).then(c=>{ cloud='ok'; cloudNote(); if(!c||!c.plays) return null;
+    c.plays=(Array.isArray(c.plays)?c.plays:Object.values(c.plays)).filter(Boolean).map(p=>({...p,b:p.b?(Array.isArray(p.b)?p.b:Object.values(p.b)):[]}));
+    c.script=c.script?(Array.isArray(c.script)?c.script:Object.values(c.script)):[]; return c; }).catch(()=>{ cloud='off'; cloudNote(); return null; });
+}
+async function openPlan(name){
+  name=String(name||'').trim(); if(!name) return toast('Type the opponent first.');
+  const local=ls.get('dpo-plan:'+slug(name),null), remote=await pullPlan(name);
+  let p=local&&remote?((remote.t||0)>(local.t||0)?remote:local):(local||remote);
+  if(p){ PLAN=p; PLAN.name=p.name||name; ls.set('dpo-plan',PLAN); toast(`Opened the ${PLAN.name} call sheet (${PLAN.plays.length} plays).`); if(p===local&&(!remote||(local.t||0)>(remote.t||0))) pushPlan(); }
+  else { const start=PLAN.example?{plays:[],script:[]}:{plays:PLAN.plays.map(x=>({...x})),script:[...PLAN.script]};
+    PLAN={name,t:0,plays:start.plays,script:start.script}; savePlan(); toast(PLAN.plays.length?`Started a ${name} call sheet from last week's plays.`:`Started a new call sheet for ${name}.`); }
+  headerUI(); renderSheet(); render();
+}
+
+/* ---------- game state ---------- */
+const S0={ytg:75,hash:'L',dn:1,dist:10,qtr:1,us:0,them:0,mode:'normal'};
+let S=Object.assign({},S0,ls.get('dpo-sit',{}));
+let LOG=ls.get('dpo-log',[]);       // tonight: {id,pid,name,type,dn,dist,ytg,res}
+let SKIP=[];                        // plays passed on for this snap
+const saveGame=()=>{ ls.set('dpo-sit',S); ls.set('dpo-log',LOG); };
+
+/* ---------- the play-call engine ---------- */
+function downBuckets(){ const d=S.dist; if(S.dn===1) return d>10?['1st','2l']:['1st'];
+  const p=S.dn===2?'2':'3'; return [p+(d<=3?'s':d<=6?'m':'l')]; }
+function zoneBucket(){ return S.ytg<=5?'gl':S.ytg<=20?'rz':S.ytg>=90?'bu':null; }
+const RES={big:1.7,td:1.8,good:1.3,bad:0.65,to:0.5};
+function scorePlays(){
+  const db=downBuckets(), zb=zoneBucket(), margin=S.us-S.them, late=S.qtr>=4;
+  const recent=LOG.slice(-3).map(l=>l.pid), lastId=LOG.length?LOG[LOG.length-1].pid:null;
+  // own tendency tonight on this down
+  const same=LOG.filter(l=>l.dn===S.dn), runs=same.filter(l=>l.type==='Run').length;
+  const lean=same.length>=4?(runs/same.length>=.75?'Run':runs/same.length<=.25?'Pass':null):null;
+  const midfield=S.ytg>=30&&S.ytg<=65;
+  const out=PLAN.plays.map(p=>{
+    const why=[]; let base=0;
+    const b=new Set(p.b||[]);
+    if(S.mode==='2min'&&b.has('2min')){ base+=3; why.push('Two-minute play'); }
+    if(S.mode==='4min'&&b.has('4min')){ base+=3; why.push('Four-minute play'); }
+    if(zb&&b.has(zb)){ base+=2.5; why.push(BN[zb].replace(/ \(.*\)/,'')+' play'); }
+    if(db.some(x=>b.has(x))){ base+=2; why.push('On the sheet for '+BN[db.find(x=>b.has(x))].replace(/ \(.*\)/,'')); }
+    if(b.has('shot')&&midfield&&(S.dn===1||(S.dn===2&&S.dist<=3))&&S.mode!=='4min'){ base+=1.2; why.push('Shot-play spot'); }
+    if(!base) return {p,w:0,why};
+    let w=base*({1:1,2:1.4,3:1.9}[p.stars]||1.4);
+    if(p.hash&&p.hash!=='any'){ if(p.hash===S.hash){ w*=1.5; why.push('Best on '+HASHN[p.hash].toLowerCase()); } else w*=0.45; }
+    // what's working tonight
+    const mine=LOG.filter(l=>l.pid===p.id&&l.res);
+    if(mine.length){ const f=mine.reduce((s,l)=>s*(RES[l.res]||1),1)**(1/Math.max(1,mine.length/1.5)); w*=f;
+      const goods=mine.filter(l=>['big','td','good'].includes(l.res)).length;
+      why.push(f>1?`Working tonight (${goods}/${mine.length})`:`Struggling tonight (${goods}/${mine.length})`); }
+    // don't repeat
+    if(p.id===lastId){ w*=0.15; why.push('Just called'); } else if(recent.includes(p.id)) w*=0.45;
+    // score and clock
+    const pass=p.type==='Pass';
+    if(S.mode==='2min'){ w*=pass?1.4:0.7; }
+    else if(S.mode==='4min'){ w*=pass?0.6:1.5; }
+    else if(late&&margin<=-9){ w*=pass?1.4:0.7; if(pass) why.push('Down two scores late'); }
+    else if(late&&margin<0){ w*=pass?1.15:0.9; }
+    else if(late&&margin>0){ w*=pass?0.85:1.3; if(!pass) why.push('Protect the lead'); }
+    if(lean&&p.type!==lean){ w*=1.25; why.push(`Breaks your ${lean.toLowerCase()} tendency on ${ord(S.dn)}`); }
+    if(SKIP.includes(p.id)) w*=0.05;
+    return {p,w,why};
+  }).filter(x=>x.w>0).sort((a,b)=>b.w-a.w);
+  return {list:out, lean, onSheet:out.length};
+}
+let SKIPPED_SCRIPT=ls.get('dpo-skipscript',[]);
+function scriptNext(){ for(const id of PLAN.script){ if(SKIPPED_SCRIPT.includes(id)) continue; if(!LOG.some(l=>l.pid===id&&l.script)){ const p=PLAN.plays.find(x=>x.id===id); if(p) return p; } } return null; }
+
+/* ---------- render: the call ---------- */
+let pending=null;   // the play just called, waiting for a result
+function sitText(){ return `${ord(S.dn)} & ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${HASHN[S.hash]} · Q${S.qtr>4?'OT':S.qtr} · ${S.us}-${S.them}${S.mode!=='normal'?' · '+(S.mode==='2min'?'Two-minute':'Four-minute'):''}`; }
+function render(){
+  headerUI(); situationUI();
+  const R=scorePlays(), top=R.list[0], alts=R.list.slice(1,4), sc=scriptNext();
+  const tot=R.list.reduce((s,x)=>s+x.w,0);
+  const pct=x=>tot?Math.round(x.w/tot*100):0;
+  let h=`<div class="sit">${esc(sitText())}</div>`;
+  if(PLAN.example) h+=`<div class="example">This is an example call sheet. Tap <b>Call sheet</b> to enter your plays or upload yours.</div>`;
+  if(pending){
+    h+=`<div class="result"><p class="lbl" style="margin:0">How did <b>${esc(pending.name)}</b> go?</p>
+      <div class="chips">${[['big','Big play 15+'],['good','Good'],['bad','No gain / loss'],['td','Touchdown'],['to','Turnover']].map(([v,l])=>`<button class="chip" type="button" data-res="${v}">${l}</button>`).join('')}
+      <button class="chip" type="button" data-res="none">Didn't run it</button></div></div>`;
+  }
+  if(sc&&S.mode!=='2min'){ h+=`<div class="script"><div class="sc-t"><span class="k">Opening script · #${PLAN.script.indexOf(sc.id)+1} of ${PLAN.script.length}</span><br><b>${esc(sc.name)}</b> <span class="note">${esc(sc.form||'')}</span></div><button class="btn btn-red" type="button" id="callScript">Call script play</button><button class="btn" type="button" id="skipScript">Skip</button></div>`; }
+  if(!PLAN.plays.length){ h+=`<p class="empty">No plays on the call sheet yet. Tap <b>Call sheet</b> to add some.</p>`; }
+  else if(!top){ h+=`<p class="empty">Nothing on the call sheet is marked for this situation. Mark more plays for ${esc(downBuckets().map(b=>BN[b]).join(', '))} in the call sheet.</p>`; }
+  else {
+    h+=`<div class="callcard"><span class="k">The call</span>
+      <span class="play">${esc(top.p.name)}</span>
+      <span class="form"><span class="tag ${top.p.type}">${top.p.type.toUpperCase()}</span> ${esc(top.p.form||'')} <span class="stars">${'★'.repeat(top.p.stars||1)}</span></span>
+      <div class="why">${top.why.map(w=>`<span>${esc(w)}</span>`).join('')}</div></div>
+      <div class="callbtns"><button class="btn btn-red" type="button" data-call="${top.p.id}">Call it</button><button class="btn" type="button" id="another">Give me another</button></div>`;
+    if(alts.length) h+=`<div><p class="lbl">Other options</p><div class="alts">${alts.map(x=>`<div class="alt"><div><span class="tag ${x.p.type}">${x.p.type==='Run'?'R':'P'}</span> <b>${esc(x.p.name)}</b><small>${esc(x.p.form||'')} · ${esc(x.why[0]||'')}</small></div><button class="btn" type="button" data-call="${x.p.id}">Call it</button></div>`).join('')}</div></div>`;
+  }
+  // tonight
+  const done=LOG.filter(l=>l.res), runs=LOG.filter(l=>l.type==='Run').length, good=done.filter(l=>['big','good','td'].includes(l.res)).length;
+  h+=`<div><p class="lbl">Tonight</p><div class="tonight">
+    <div class="stat"><b>${LOG.length?Math.round(runs/LOG.length*100):0}% run</b><span>${LOG.length} plays called${R.lean?` · leaning ${R.lean.toLowerCase()} on ${ord(S.dn)}`:''}</span></div>
+    <div class="stat"><b>${done.length?Math.round(good/done.length*100):0}%</b><span>Plays that worked</span></div>
+    <div class="stat"><b>${(()=>{const m={};done.forEach(l=>{if(['big','good','td'].includes(l.res))m[l.name]=(m[l.name]||0)+1;});const b=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return b?esc(b[0]):'—';})()}</b><span>Best play tonight</span></div></div></div>`;
+  if(LOG.length) h+=`<div class="log"><table><thead><tr><th>#</th><th>D&amp;D</th><th>Spot</th><th>Play</th><th>Result</th></tr></thead><tbody>${LOG.slice().reverse().slice(0,12).map((l,i)=>`<tr><td>${LOG.length-i}</td><td>${ord(l.dn)}&amp;${l.dist}</td><td>${spotLabel(l.ytg)}</td><td><span class="tag ${l.type}">${l.type==='Run'?'R':'P'}</span> ${esc(l.name)}</td><td>${l.res?`<span class="res ${l.res}">${{big:'Big',good:'Good',bad:'Bad',td:'TD',to:'Turnover'}[l.res]}</span>`:'<span class="note">—</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+  $('callPanel').innerHTML=h;
+  // mini call bar for phones
+  $('minicall').innerHTML=top||sc?`<div class="mc-m"><span class="mc-k">${sc&&S.mode!=='2min'?'Script #'+(PLAN.script.indexOf(sc.id)+1):'The call'} · ${esc(ord(S.dn))} &amp; ${S.dist>=S.ytg?'G':S.dist} ${esc(spotLabel(S.ytg))}</span><b>${esc((sc&&S.mode!=='2min'?sc:top.p).name)}</b></div><button class="btn" type="button" id="mcGo">Details</button>`:'';
+  if($('mcGo')) $('mcGo').onclick=()=>$('callPanel').scrollIntoView({behavior:'smooth',block:'start'});
+  // wire buttons
+  $('callPanel').querySelectorAll('[data-call]').forEach(b=>b.onclick=()=>callPlay(b.dataset.call,false));
+  if($('another')) $('another').onclick=()=>{ SKIP.push(top.p.id); render(); };
+  if($('callScript')) $('callScript').onclick=()=>callPlay(sc.id,true);
+  if($('skipScript')) $('skipScript').onclick=()=>{ SKIPPED_SCRIPT.push(sc.id); ls.set('dpo-skipscript',SKIPPED_SCRIPT); render(); };
+  $('callPanel').querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>setResult(b.dataset.res));
+}
+function callPlay(pid,script){
+  const p=PLAN.plays.find(x=>x.id===pid); if(!p) return;
+  if(pending&&!pending.res){ /* replace an unanswered call */ }
+  const e={id:uid(),pid,name:p.name,type:p.type,dn:S.dn,dist:S.dist,ytg:S.ytg,res:null,script:!!script};
+  LOG.push(e); pending=e; SKIP=[]; saveGame(); render(); toast(`Called ${p.name}.`);
+}
+function setResult(r){
+  if(!pending) return;
+  if(r==='none'){ LOG=LOG.filter(l=>l.id!==pending.id); }
+  else { const e=LOG.find(l=>l.id===pending.id); if(e) e.res=r; }
+  pending=null; saveGame(); render();
+}
+$('newGame').onclick=()=>{
+  if(!$('newGame').dataset.arm){ $('newGame').dataset.arm='1'; $('newGame').textContent='Tap again to clear tonight'; setTimeout(()=>{ delete $('newGame').dataset.arm; $('newGame').textContent='New game'; },3000); return; }
+  delete $('newGame').dataset.arm; $('newGame').textContent='New game';
+  LOG=[]; SKIPPED_SCRIPT=[]; ls.set('dpo-skipscript',[]); pending=null; S=Object.assign({},S0); saveGame(); kpReset(); render(); toast('New game. Tonight\'s log and score are cleared.');
+};
+
+/* ---------- situation controls ---------- */
+const sideOf=y=>y>=50?'own':'opp', numOf=y=>y>=50?100-y:y, ytgFrom=(s,n)=>n===50?50:(s==='own'?100-n:n);
+const spotLabel=y=>y===50?'50':y>50?'Own '+(100-y):'Opp '+y;
+function chipRow(host,items,isOn,onPick){ host.innerHTML=''; items.forEach(it=>{ const b=document.createElement('button'); b.className='chip'; b.type='button'; b.setAttribute('aria-pressed',isOn(it.v)?'true':'false'); b.textContent=it.t; b.onclick=()=>{ onPick(it.v); SKIP=[]; saveGame(); render(); }; host.appendChild(b); }); }
+let kpBuf='',kpT=null,kpSide=null;
+function situationUI(){
+  const side=kpSide||sideOf(S.ytg);
+  $('sideOwn').setAttribute('aria-pressed',side==='own'); $('sideOpp').setAttribute('aria-pressed',side==='opp');
+  $('kpSide').textContent=S.ytg===50&&!kpBuf?'MID':side.toUpperCase();
+  $('kpNum').textContent=kpBuf?(kpBuf.length===1?kpBuf+'_':kpBuf):numOf(S.ytg); $('kpNum').classList.toggle('typing',!!kpBuf);
+  $('spotTxt').innerHTML=spotLabel(S.ytg)+'<small>'+HASHN[S.hash]+'</small>';
+  chipRow($('hashChips'),['L','M','R'].map(h=>({v:h,t:{L:'Left',M:'Middle',R:'Right'}[h]})),v=>S.hash===v,v=>S.hash=v);
+  chipRow($('downChips'),[1,2,3,4].map(d=>({v:d,t:ord(d)})),v=>S.dn===v,v=>S.dn=v);
+  chipRow($('distChips'),[1,2,3,4,5,6,7,8,9,10,15,20].map(d=>({v:d,t:d})),v=>S.dist===v,v=>S.dist=v);
+  $('distOut').textContent=S.dist>=S.ytg?'G':S.dist;
+  chipRow($('qtrChips'),[1,2,3,4,5].map(q=>({v:q,t:q===5?'OT':'Q'+q})),v=>S.qtr===v,v=>S.qtr=v);
+  $('scUs').textContent=S.us; $('scThem').textContent=S.them;
+  chipRow($('modeChips'),[['normal','Normal'],['2min','Two-minute'],['4min','Four-minute']].map(([v,t])=>({v,t})),v=>S.mode===v,v=>S.mode=v);
+  const m=S.us-S.them; let sg='';
+  if(S.mode==='normal'&&(S.qtr===2||S.qtr===4)&&m<=0) sg='Late in the half and not ahead? Switch to Two-minute when the clock gets under 2:00.';
+  if(S.mode==='normal'&&S.qtr>=4&&m>0) sg='Ahead in the 4th: switch to Four-minute to run the clock.';
+  $('suggest').hidden=!sg; $('suggest').textContent=sg;
+}
+function kpReset(){ kpBuf=''; kpSide=null; clearTimeout(kpT); situationUI(); }
+function kpPress(k){
+  const side=kpSide||sideOf(S.ytg);
+  let b=kpBuf+k; if(b.length>2||+b>50) b=k; if(b==='0'){ kpBuf=''; situationUI(); return; }
+  kpBuf=b; kpSide=side; S.ytg=ytgFrom(side,+b); SKIP=[]; saveGame(); render();
+  clearTimeout(kpT); kpT=setTimeout(kpReset,b.length===2?350:1400);
+}
+$('keypad').addEventListener('click',e=>{ const k=e.target.closest('[data-k]'); if(k) kpPress(k.dataset.k); });
+$('sideOwn').onclick=()=>{ kpSide='own'; S.ytg=ytgFrom('own',numOf(S.ytg)); saveGame(); render(); };
+$('sideOpp').onclick=()=>{ kpSide='opp'; S.ytg=ytgFrom('opp',numOf(S.ytg)); saveGame(); render(); };
+$('dMinus').onclick=()=>{ S.dist=Math.max(1,S.dist-1); saveGame(); render(); };
+$('dPlus').onclick=()=>{ S.dist=Math.min(40,S.dist+1); saveGame(); render(); };
+document.querySelectorAll('[data-sc]').forEach(b=>b.onclick=()=>{ const k=b.dataset.sc; S[k]=Math.max(0,S[k]+(+b.dataset.d)); saveGame(); render(); });
+document.addEventListener('keydown',e=>{ if(e.target.closest('input,select,textarea')) return; if(/^[0-9]$/.test(e.key)){ kpPress(e.key); e.preventDefault(); } });
+
+/* ---------- call sheet editor ---------- */
+let editId=null, tab='play', lastUpload=null;
+function bucketBoxes(sel){ $('pBucks').innerHTML=BUCKETS.map(([v,l])=>`<label class="cb"><input type="checkbox" value="${v}" ${sel.includes(v)?'checked':''}><span>${l}</span></label>`).join(''); }
+function resetForm(){ editId=null; $('playForm').reset(); $('pStars').value='2'; bucketBoxes([]); $('pSave').textContent='Add play'; $('pCancel').hidden=true; }
+$('playForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const b=[...$('pBucks').querySelectorAll('input:checked')].map(i=>i.value);
+  const p={name:$('pName').value.trim(),form:$('pForm').value.trim(),type:$('pType').value,hash:$('pHash').value,stars:+$('pStars').value,b};
+  if(!p.name) return toast('Type the play name.');
+  if(!b.length) return toast('Check at least one situation to call it in.');
+  if(PLAN.example){ PLAN={name:'This week',t:0,plays:[],script:[]}; toast('Started your own call sheet. Name it with the opponent above.'); }
+  if(editId){ const x=PLAN.plays.find(x=>x.id===editId); if(x) Object.assign(x,p); toast(`Updated ${p.name}.`); }
+  else { PLAN.plays.push({id:uid(),...p}); toast(`Added ${p.name}.`); }
+  savePlan(); resetForm(); renderSheet(); render();
+});
+$('pCancel').onclick=resetForm;
+function renderSheet(){
+  $('planInput').value=PLAN.example?'':PLAN.name; cloudNote();
+  chipRow($('sheetTabs'),[['play','By play'],['sit','By situation'],['script','Opening script']].map(([v,t])=>({v,t})),v=>tab===v,v=>{ tab=v; renderSheet(); });
+  const row=p=>`<div class="prow"><div><span class="tag ${p.type}">${p.type==='Run'?'R':'P'}</span> <b>${esc(p.name)}</b> <span class="stars">${'★'.repeat(p.stars||1)}</span><small>${esc(p.form||'No formation')}${p.hash&&p.hash!=='any'?' · best on '+HASHN[p.hash].toLowerCase():''} · ${(p.b||[]).map(x=>BN[x]).join(', ')}</small></div>
+    <div class="pf-act"><button class="btn" type="button" data-scr="${p.id}">${PLAN.script.includes(p.id)?'In script':'+ Script'}</button><button class="btn" type="button" data-ed="${p.id}">Edit</button><button class="btn" type="button" data-del="${p.id}">Delete</button></div></div>`;
+  let h='';
+  if(!PLAN.plays.length) h='<p class="empty">No plays yet. Add one above, or upload the spreadsheet template.</p>';
+  else if(tab==='play') h=PLAN.plays.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(row).join('');
+  else if(tab==='sit') h='<div class="blist">'+BUCKETS.map(([v,l])=>{ const ps=PLAN.plays.filter(p=>(p.b||[]).includes(v)); return `<div class="bgrp"><h3>${l} <small>${ps.length} play${ps.length===1?'':'s'}${ps.length?` · ${ps.filter(p=>p.type==='Run').length} run, ${ps.filter(p=>p.type==='Pass').length} pass`:''}</small></h3>${ps.length?ps.map(row).join(''):'<p class="note">Nothing marked for this yet.</p>'}</div>`; }).join('')+'</div>';
+  else h=PLAN.script.length?PLAN.script.map((id,i)=>{ const p=PLAN.plays.find(x=>x.id===id); if(!p) return ''; const used=LOG.some(l=>l.pid===id&&l.script)||SKIPPED_SCRIPT.includes(id);
+      return `<div class="srow${used?' done':''}"><span class="n">${i+1}</span><div><span class="tag ${p.type}">${p.type==='Run'?'R':'P'}</span> <b>${esc(p.name)}</b> <small class="note">${esc(p.form||'')}${used?' · used tonight':''}</small></div><div class="pf-act"><button class="btn" type="button" data-up="${i}" ${i?'':'disabled'}>↑</button><button class="btn" type="button" data-dn="${i}" ${i<PLAN.script.length-1?'':'disabled'}>↓</button><button class="btn" type="button" data-rm="${i}">Remove</button></div></div>`; }).join('')
+      :'<p class="empty">No opening script. Tap "+ Script" on any play to add it in order.</p>';
+  $('sheetList').innerHTML=h;
+  const L=$('sheetList');
+  L.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{ const p=PLAN.plays.find(x=>x.id===b.dataset.ed); editId=p.id; $('pName').value=p.name; $('pForm').value=p.form||''; $('pType').value=p.type; $('pHash').value=p.hash||'any'; $('pStars').value=String(p.stars||2); bucketBoxes(p.b||[]); $('pSave').textContent='Save changes'; $('pCancel').hidden=false; $('pName').focus(); });
+  L.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ const p=PLAN.plays.find(x=>x.id===b.dataset.del); PLAN.plays=PLAN.plays.filter(x=>x!==p); PLAN.script=PLAN.script.filter(x=>x!==p.id); savePlan(); renderSheet(); render(); toast(`Deleted ${p.name}.`); });
+  L.querySelectorAll('[data-scr]').forEach(b=>b.onclick=()=>{ const id=b.dataset.scr; PLAN.script=PLAN.script.includes(id)?PLAN.script.filter(x=>x!==id):PLAN.script.concat(id); savePlan(); renderSheet(); render(); });
+  const mv=(i,d)=>{ const s=PLAN.script; [s[i],s[i+d]]=[s[i+d],s[i]]; savePlan(); renderSheet(); render(); };
+  L.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>mv(+b.dataset.up,-1));
+  L.querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>mv(+b.dataset.dn,1));
+  L.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ PLAN.script.splice(+b.dataset.rm,1); savePlan(); renderSheet(); render(); });
+}
+$('planOpen').onclick=()=>openPlan($('planInput').value);
+$('planInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); openPlan(e.target.value); } });
+$('sheetBtn').onclick=()=>{ const p=$('sheetPanel'); p.hidden=!p.hidden; if(!p.hidden){ resetForm(); renderSheet(); p.scrollIntoView({block:'start'}); } };
+$('sheetClose').onclick=()=>{ $('sheetPanel').hidden=true; };
+
+/* ---------- spreadsheet template, export and upload ---------- */
+const COLS=['PLAY','FORMATION','RUN/PASS','HASH','PRIORITY (1-3)','SCRIPT #'].concat(BUCKETS.map(b=>b[1].toUpperCase()));
+function sheetRows(plan,blank){
+  const rows=[COLS];
+  if(blank){ rows.push(['Inside Zone','Doubles','Run','Any',3,1,'X','X','X','','X','','','','','','','','X']); rows.push(['Stick','Trips','Pass','Any',2,2,'','','X','X','X','X','','','','','','X','']); rows.push(['PA Post','Pistol','Pass','Left',3,'', 'X','','','','','','','','','','X','','']); }
+  else plan.plays.forEach(p=>rows.push([p.name,p.form||'',p.type,{any:'Any',L:'Left',M:'Middle',R:'Right'}[p.hash||'any'],p.stars||2,plan.script.includes(p.id)?plan.script.indexOf(p.id)+1:''].concat(BUCKETS.map(([v])=>(p.b||[]).includes(v)?'X':''))));
+  return rows;
+}
+function download(rows,name){
+  if(!window.XLSX) return toast('The spreadsheet tool did not load. Check the signal and try again.');
+  try{ const ws=XLSX.utils.aoa_to_sheet(rows); ws['!cols']=COLS.map((c,i)=>({wch:i<2?22:Math.max(10,Math.min(26,c.length+2))})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Call sheet'); XLSX.writeFile(wb,name); $('dlNote').textContent=''; }
+  catch(_){ $('dlNote').textContent='Downloads are blocked in this preview. Use the Vercel site to download.'; }
+}
+$('tplBtn').onclick=()=>download(sheetRows(null,true),'Demon call sheet template.xlsx');
+$('exportBtn').onclick=()=>download(sheetRows(PLAN,false),`Call sheet${PLAN.example?'':' vs '+PLAN.name}.xlsx`);
+const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+function colFor(header){
+  const h=norm(header);
+  if(/^PLAY( NAME| CALL)?$/.test(h)) return 'name';
+  if(/^FORM(ATION)?$/.test(h)) return 'form';
+  if(/RUN.*PASS|^TYPE$|PLAY TYPE/.test(h)) return 'type';
+  if(/^HASH|BEST ON/.test(h)) return 'hash';
+  if(/PRIORITY|STARS|RATING/.test(h)) return 'stars';
+  if(/SCRIPT/.test(h)) return 'script';
+  const tests=[['1st',/^1ST|FIRST/],['2s',/2ND.*SHORT|SECOND.*SHORT/],['2m',/2ND.*MED|SECOND.*MED/],['2l',/2ND.*LONG|SECOND.*LONG/],
+    ['3s',/3RD.*SHORT|THIRD.*SHORT|SHORT YARD/],['3m',/3RD.*MED|THIRD.*MED/],['3l',/3RD.*LONG|THIRD.*LONG/],['gl',/GOAL ?LINE/],['rz',/RED ?ZONE/],
+    ['bu',/BACKED|COMING OUT/],['shot',/SHOT/],['2min',/TWO MIN|2 MIN/],['4min',/FOUR MIN|4 MIN/]];
+  for(const [k,re] of tests) if(re.test(h)) return 'b:'+k;
+  return null;
+}
+$('sheetFile').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return; e.target.value='';
+  try{
+    if(!window.XLSX) throw new Error('The spreadsheet tool did not load. Check the signal and try again.');
+    const wb=XLSX.read(await f.arrayBuffer()); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+    const hi=rows.findIndex(r=>r.some(c=>colFor(c)==='name')); if(hi<0) throw new Error('Could not find a PLAY column. Start from the template so the columns match.');
+    const map=rows[hi].map(colFor), plays=[], script=[];
+    rows.slice(hi+1).forEach(r=>{
+      const o={id:uid(),name:'',form:'',type:'Run',hash:'any',stars:2,b:[]}; let sn=null;
+      map.forEach((k,i)=>{ const v=String(r[i]??'').trim(); if(!k||!v) return;
+        if(k==='name') o.name=v; else if(k==='form') o.form=v;
+        else if(k==='type') o.type=/^P/i.test(v)?'Pass':'Run';
+        else if(k==='hash') o.hash=/^L/i.test(v)?'L':/^R/i.test(v)?'R':/^M|^C/i.test(v)?'M':'any';
+        else if(k==='stars') o.stars=Math.max(1,Math.min(3,(v.match(/★/g)||[]).length||parseInt(v)||2));
+        else if(k==='script') sn=parseInt(v)||null;
+        else if(k.startsWith('b:')&&!/^(n|no|0|false|-)$/i.test(v)) o.b.push(k.slice(2)); });
+      if(!o.name) return;
+      plays.push(o); if(sn) script.push([sn,o.id]);
+    });
+    if(!plays.length) throw new Error('No plays found under the PLAY column.');
+    lastUpload=JSON.parse(JSON.stringify(PLAN));
+    const name=PLAN.example?(f.name.replace(/\.[^.]+$/,'').replace(/demon|template|call ?sheet|\bvs\.?\b|\(\d+\)/ig,'').replace(/[_-]+/g,' ').trim()||'This week'):PLAN.name;
+    PLAN={name,t:0,plays,script:script.sort((a,b)=>a[0]-b[0]).map(x=>x[1])};
+    savePlan(); renderSheet(); render(); $('undoUpload').hidden=false;
+    const none=plays.filter(p=>!p.b.length).length;
+    toast(`Loaded ${plays.length} plays${PLAN.script.length?`, ${PLAN.script.length} scripted`:''}.`+(none?` ${none} have no situations marked, so they won't be called.`:''));
+  }catch(err){ toast(err.message||'Could not read that file.'); }
+};
+$('undoUpload').onclick=()=>{ if(!lastUpload) return; PLAN=lastUpload; lastUpload=null; savePlan(); $('undoUpload').hidden=true; renderSheet(); render(); toast('Put the call sheet back the way it was.'); };
+
+/* ---------- theme (shared with the defense side) ---------- */
+function curTheme(){ const a=document.documentElement.getAttribute('data-theme'); return a||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'); }
+function themeUI(){ const d=curTheme()==='dark'; document.querySelectorAll('[data-theme-btn] span').forEach(s=>s.textContent=d?'Light':'Dark'); }
+document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>{ const th=curTheme()==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme',th); try{localStorage.setItem('dpp-theme',th);}catch(_){} themeUI(); });
+try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
+themeUI();
+
+/* ---------- offline ---------- */
+if(PWA&&'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+try{ sessionStorage.setItem('dpp-side','off'); localStorage.setItem('dpp-last-side','off'); }catch(_){}
+
+/* start */
+if(!PLAN.example&&PLAN.name) pullPlan(PLAN.name).then(c=>{ if(c&&(c.t||0)>(PLAN.t||0)){ PLAN=c; ls.set('dpo-plan',PLAN); render(); toast('Got the newer call sheet from the backup.'); } });
+pending=LOG.length&&!LOG[LOG.length-1].res?LOG[LOG.length-1]:null;
+render();
+</script>
+
+</body></html>

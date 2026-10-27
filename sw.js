@@ -1,6 +1,6 @@
 // Offline support for Demon Play Predictor
-const V = 'dpp-v3';
-const CORE = ['./', './index.html', './xlsx.full.min.js', './manifest.webmanifest',
+const V = 'dpp-v4';
+const CORE = ['./', './index.html', './offense.html', './xlsx.full.min.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -23,10 +23,10 @@ self.addEventListener('fetch', e => {
     e.respondWith((async () => {
       try {
         const res = await Promise.race([fetch(req), timeout(2500)]);
-        if (res && res.ok) { const c = await caches.open(V); c.put('./index.html', res.clone()); }
+        if (res && res.ok) { const c = await caches.open(V); c.put(req, res.clone()); }
         return res;
       } catch (_) {
-        return (await caches.match('./index.html')) || (await caches.match('./'));
+        return (await caches.match(req, {ignoreSearch: true})) || (/offense/.test(url.pathname) ? await caches.match('./offense.html') : null) || (await caches.match('./index.html')) || (await caches.match('./'));
       }
     })());
     return;
