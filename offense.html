@@ -176,6 +176,31 @@ td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
 .srow .n{font:800 20px var(--display);color:var(--red)}
 .srow.done{opacity:.5}
 .example{background:var(--warn);color:#111;border-radius:8px;padding:8px 12px;font-weight:600;font-size:14px}
+.dropzone{display:flex;flex-direction:column;gap:4px;border:2px dashed var(--red);border-radius:12px;padding:18px;cursor:pointer;background:var(--bg);text-align:center;align-items:center}
+.dropzone b{font:800 22px var(--display);text-transform:uppercase}
+.dropzone span{color:var(--muted);font-size:14px;max-width:68ch}
+.dropzone:hover{background:var(--redsoft)}
+.dropcover{position:fixed;inset:0;z-index:90;background:rgba(200,16,46,.9);display:grid;place-items:center;pointer-events:none}
+.dropcover div{font:800 clamp(28px,5vw,54px) var(--display);text-transform:uppercase;color:#fff;border:4px dashed #fff;border-radius:18px;padding:40px 50px}
+.review{border:2px solid var(--red);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--panel)}
+.rv-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.rv-sum{font:600 16px var(--body);margin:4px 0 0}
+.warnc{color:var(--warn)}
+.rv-g h4{font:800 17px var(--display);text-transform:uppercase;margin:0 0 6px}
+.rv-g h4 small{font:500 12px var(--body);color:var(--muted);text-transform:none;margin-left:6px}
+.rv-list{display:flex;flex-wrap:wrap;gap:6px}
+.rv-p,.rv-in{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 6px 4px 4px;background:var(--bg)}
+.rv-p .rv-in{border:0;padding:0;background:none}
+.rv-p.unsure,.rv-in.unsure{border-color:var(--warn)}
+.rv-t{font:700 11px var(--mono);padding:4px 7px;border-radius:4px;border:0;cursor:pointer;background:var(--panel);color:var(--ink);outline:1px solid var(--line)}
+.rv-t.Run{background:var(--run);color:#fff;outline:0}
+.unsure>.rv-t{box-shadow:0 0 0 2px var(--warn)}
+.rv-n{font:700 15px var(--display);text-transform:uppercase}
+.rv-n small{font:500 12px var(--body);color:var(--muted);text-transform:none}
+.rv-x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px}
+.rv-x:hover{color:var(--red)}
+.rv-num{font:800 16px var(--display);color:var(--red);min-width:18px;text-align:center}
+.rv-none{border-top:1px dashed var(--line);padding-top:10px}
 #toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
 </style>
 
@@ -210,10 +235,15 @@ td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
       <button class="btn" id="tplBtn" type="button">Download template</button>
       <button class="btn" id="exportBtn" type="button">Download my call sheet</button>
       <label class="btn btn-ink" for="sheetFile">Upload call sheet</label>
-      <input id="sheetFile" type="file" accept=".xlsx,.xls,.csv" hidden>
+      <input id="sheetFile" type="file" accept=".xlsx,.xls,.xlsm,.csv,.txt,.tsv" hidden>
       <button class="btn" id="undoUpload" type="button" hidden>Undo upload</button>
       <span class="note" id="dlNote"></span>
     </div>
+    <label class="dropzone" id="dropzone" for="sheetFile">
+      <b>Drop your call sheet here</b>
+      <span>Your own Excel or Google Sheets layout works. The app finds your situation headers (1st &amp; 10, 3rd &amp; short, red zone, openers…), reads the plays under them, and shows you what it found first. Or tap to choose a file.</span>
+    </label>
+    <section class="review" id="review" hidden aria-label="Review the imported call sheet"></section>
     <form class="pform" id="playForm" autocomplete="off">
       <label class="pf"><span class="lbl">Play</span><input id="pName" placeholder="e.g. Inside Zone" maxlength="40" required></label>
       <label class="pf"><span class="lbl">Formation</span><input id="pForm" placeholder="e.g. Doubles Rt" maxlength="30"></label>
@@ -261,6 +291,7 @@ td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
     <section class="panel callp" aria-label="The call" id="callPanel"></section>
   </div>
 </div>
+<div class="dropcover" id="dropcover" hidden><div>Drop your call sheet to read it</div></div>
 <div id="toast" hidden></div>
 
 <script>
@@ -554,34 +585,223 @@ function colFor(header){
   for(const [k,re] of tests) if(re.test(h)) return 'b:'+k;
   return null;
 }
-$('sheetFile').onchange=async e=>{
-  const f=e.target.files[0]; if(!f) return; e.target.value='';
-  try{
-    if(!window.XLSX) throw new Error('The spreadsheet tool did not load. Check the signal and try again.');
-    const wb=XLSX.read(await f.arrayBuffer()); const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
-    const hi=rows.findIndex(r=>r.some(c=>colFor(c)==='name')); if(hi<0) throw new Error('Could not find a PLAY column. Start from the template so the columns match.');
-    const map=rows[hi].map(colFor), plays=[], script=[];
-    rows.slice(hi+1).forEach(r=>{
-      const o={id:uid(),name:'',form:'',type:'Run',hash:'any',stars:2,b:[]}; let sn=null;
-      map.forEach((k,i)=>{ const v=String(r[i]??'').trim(); if(!k||!v) return;
-        if(k==='name') o.name=v; else if(k==='form') o.form=v;
-        else if(k==='type') o.type=/^P/i.test(v)?'Pass':'Run';
-        else if(k==='hash') o.hash=/^L/i.test(v)?'L':/^R/i.test(v)?'R':/^M|^C/i.test(v)?'M':'any';
-        else if(k==='stars') o.stars=Math.max(1,Math.min(3,(v.match(/★/g)||[]).length||parseInt(v)||2));
-        else if(k==='script') sn=parseInt(v)||null;
-        else if(k.startsWith('b:')&&!/^(n|no|0|false|-)$/i.test(v)) o.b.push(k.slice(2)); });
-      if(!o.name) return;
-      plays.push(o); if(sn) script.push([sn,o.id]);
+/* ---------- smart import: read a coach's own call sheet layout ---------- */
+const IMP_FILLER=new Set('DOWN DOWNS AND N & PLAYS PLAY CALLS CALL MENU YARDS YDS YARD YARDAGE TO THE OF ON SITUATION SITUATIONS OFFENSE OFFENSIVE OFF ZONE LINE TERRITORY - + DIST DISTANCE SITUATIONAL'.split(' '));
+function impNorm(s){ return String(s||'').toUpperCase().replace(/[’']/g,'').replace(/[^A-Z0-9&+\- ]+/g,' ').replace(/\s+/g,' ').trim(); }
+// What a header cell means: a situation, a run/pass sub-header, a hash sub-header, or null for a play.
+function impHeader(raw){
+  const s=impNorm(raw); if(!s||s.length>34) return null;
+  const T=' '+s+' ';
+  if(/^(RUNS?|RUN GAME|RUNNING GAME|DRAWS)$/.test(s)) return {kind:'type',type:'Run'};
+  if(/^(PASS(ES)?|PASS GAME|PASSING GAME|DROPBACK|DROP BACK|QUICKS?|QUICK GAME|SCREENS?|PLAY ACTION|PA|BOOTS?|DEEP PASS|RPOS?)$/.test(s)) return {kind:'type',type:/^RPO/.test(s)?'Run':'Pass'};
+  if(/^(LEFT|LT) HASH$/.test(s)) return {kind:'hash',hash:'L'};
+  if(/^(RIGHT|RT) HASH$/.test(s)) return {kind:'hash',hash:'R'};
+  if(/^(MIDDLE|MID|CENTER)( OF FIELD| HASH)?$/.test(s)) return {kind:'hash',hash:'M'};
+  if(/\b(SCRIPT|SCRIPTED|OPENERS?|OPENING)\b/.test(s)||/^(FIRST|1ST) (12|15|20|25)( PLAYS)?$/.test(s)) return {kind:'script'};
+  const b=new Set(); let used=new Set();
+  const take=(re,...ks)=>{ const m=T.match(re); if(m){ ks.forEach(k=>b.add(k)); m[0].trim().split(' ').forEach(w=>used.add(w)); return true; } return false; };
+  take(/ (RED ?ZONE|RZ|FRINGE|INSIDE 20|INSIDE THE 20) /,'rz');
+  take(/ (GOAL ?LINE|GL|INSIDE 5|INSIDE THE 5|GOAL TO GO|2 ?PT|TWO POINT|2 POINT|PAT) /,'gl');
+  take(/ (BACKED UP|BACKED|COMING OUT|MINUS|BACKUP|OWN GOAL) /,'bu');
+  take(/ (SHOTS?|SHOT PLAYS?|DEEP SHOTS?|TAKEOFFS?|POT ?SHOTS?) /,'shot');
+  take(/ (2 ?MIN(UTE)?|TWO MIN(UTE)?|HURRY UP|HURRY|NO HUDDLE) /,'2min');
+  take(/ (4 ?MIN(UTE)?|FOUR MIN(UTE)?|CLOCK KILLER|MILK|KILL CLOCK|RUN CLOCK) /,'4min');
+  if(take(/ SHORT YARDAGE /,'3s','2s')){}
+  const dn=T.match(/ (1ST|FIRST|1) |(2ND|SECOND|2) |(3RD|THIRD|3) |(4TH|FOURTH|4) /);
+  const dw=T.match(/ (1ST|FIRST|2ND|SECOND|3RD|THIRD|4TH|FOURTH) /) || T.match(/^ ([1-4]) (?:&|AND|N) /);
+  if(dw){
+    const d=/1ST|FIRST|^1$/.test(dw[1])?1:/2ND|SECOND|^2$/.test(dw[1])?2:/3RD|THIRD|^3$/.test(dw[1])?3:4;
+    used.add(dw[1]);
+    const short=/ (SHORT|INCHES|1 ?- ?3|1 ?- ?2|2 ?- ?3|1 3) /.test(T), med=/ (MED|MEDIUM|MID|4 ?- ?6|3 ?- ?6|4 6|NORMAL) /.test(T), long=/ (LONG|7\+|7 ?- ?10|7 ?- ?9|7 PLUS|PLUS|XL|EXTRA LONG|10\+) /.test(T);
+    ['SHORT','INCHES','MED','MEDIUM','MID','LONG','PLUS','XL','EXTRA','NORMAL'].forEach(w=>{ if(T.includes(' '+w+' ')) used.add(w); });
+    if(d===1){ b.add('1st'); if(long) b.add('2l'); }
+    else { const p=d===2?'2':'3'; if(short) b.add(p+'s'); if(med) b.add(p+'m'); if(long) b.add(p+'l'); if(!short&&!med&&!long){ b.add(p+'s'); b.add(p+'m'); b.add(p+'l'); } if(d===4&&!long&&!med) { b.clear(); b.add('3s'); } }
+  }
+  if(!b.size) return null;
+  // Every word must be accounted for, so "3rd Down Screen" stays a play.
+  const left=s.split(' ').filter(w=>!used.has(w)&&!IMP_FILLER.has(w)&&!/^\d+$|^\d+-\d+$|^\d+\+$/.test(w));
+  if(left.length) return null;
+  return {kind:'bucket',b:[...b]};
+}
+const PASS_W=new Set('PA BOOT BOOTLEG SCREEN SCREENS VERT VERTS VERTICAL VERTICALS STICK MESH SMASH SLANT SLANTS FADE FADES POST FLOOD SAIL CROSS CROSSER BUBBLE DIG DIGS CURL CURLS OUT OUTS WHEEL FLAG HITCH HITCHES CORNER SPOT SNAG DRIVE SHALLOW CHOICE HOOK SEAM SEAMS GO GOS STOP FLAT SWING SHOOT ARROW TUNNEL JAILBREAK ROLLOUT ROLL SPRINT NAKED LEVELS DAGGER TAKEOFF PASS QUICK WHIP SPACING DRAG DRAGS COMEBACK OPTION-ROUTE SLUGGO STUTTER SPEED BENCH ANGLE TEXAS RAILROAD CHECKDOWN PIVOT ZIG'.split(' '));
+const RUN_W=new Set('ZONE IZ OZ POWER COUNTER SWEEP ISO TRAP DIVE SNEAK DRAW TOSS PITCH JET BELLY LEAD STRETCH OPTION VEER DUO WHAM SPLIT GT GH PIN PULL BUCK WEDGE MIDLINE REVERSE FB KEEP KEEPER FOLD CRACK INSIDE OUTSIDE BLAST CHOP TRIPLE SPEED-OPTION RIDE ARC BASH STRETCH SWEEPS HANDOFF QB-RUN KEEPS'.split(' '));
+const FORM_W=new Set('TRIPS TRIP DOUBLES DOUBLE DEUCE TREY TRAY TWINS TWIN EMPTY BUNCH STACK PISTOL GUN SHOTGUN ACE PRO SLOT I WING WINGS JUMBO HEAVY SPREAD WILDCAT UNBALANCED NUB SLEY SNIFFER SQZ OPEN DBL FLEX TIGHT WISHBONE BONE DIAMOND QUADS QUAD UNDER OFFSET STRONG WEAK BIG Y H F RT LT RIGHT LEFT R L'.split(' '));
+function impClassify(name){
+  const s=impNorm(name), w=s.split(' ');
+  if(/^(PA|PLAY ACTION|BOOT|NAKED|SPRINT|ROLL)\b/.test(s)) return {type:'Pass',sure:true};
+  if(/\bRPO\b/.test(s)) return {type:'Run',sure:false};
+  let r=0,p=0; w.forEach(x=>{ if(RUN_W.has(x)) r++; if(PASS_W.has(x)) p++; });
+  if(/\b(QB|QUARTERBACK) (POWER|DRAW|SNEAK|KEEP|COUNTER|ISO|RUN)\b/.test(s)) return {type:'Run',sure:true};
+  if(/\b\d{2}\b/.test(s)&&!p) r+=0.5;      // "36 Power" style hole numbers
+  if(r>p) return {type:'Run',sure:p===0};
+  if(p>r) return {type:'Pass',sure:r===0};
+  return {type:'Pass',sure:false};
+}
+function impSplit(text){
+  // "Trips Rt 36 Power" -> formation "Trips Rt", play "36 Power"
+  const raw=String(text).trim().replace(/\s+/g,' '), w=raw.split(' ');
+  let i=0; while(i<w.length-1&&FORM_W.has(w[i].toUpperCase().replace(/[^A-Z]/g,''))&&!RUN_W.has(w[i].toUpperCase())&&!PASS_W.has(w[i].toUpperCase())) i++;
+  const rest=w.slice(i).map(x=>x.toUpperCase().replace(/[^A-Z0-9]/g,''));
+  if(i>0&&i<w.length&&w.slice(0,i).some(x=>!/^(RT|LT|RIGHT|LEFT|R|L|Y|H|F|BIG|STRONG|WEAK)$/i.test(x))&&rest.some(x=>RUN_W.has(x)||PASS_W.has(x)||/^\d+$/.test(x))) return {form:w.slice(0,i).join(' '),name:w.slice(i).join(' ')};
+  return {form:'',name:raw};
+}
+function impGrid(ws){
+  const g=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',blankrows:true,raw:false});
+  (ws['!merges']||[]).forEach(m=>{ const v=(g[m.s.r]||[])[m.s.c]; if(v===''||v==null) return;
+    for(let r=m.s.r;r<=m.e.r;r++){ g[r]=g[r]||[]; for(let c=m.s.c;c<=m.e.c;c++) if(r===m.s.r&&c!==m.s.c||r!==m.s.r) g[r][c]=g[r][c]||'\u0000'+v; } });
+  return g;
+}
+// Reads a grid of cells. Returns {plays:[{text,b:Set,type?,hash?,script?}], title, headers:[]}
+function impAnalyze(grids){
+  const found=[], headersSeen=[]; let title='';
+  const add=(text,st,extra={})=>{
+    String(text).split(/\r?\n/).forEach(line=>{
+      let t=line.replace(/^\u0000/,'').trim(); if(!t) return;
+      if(/\bvs\.?\s+[A-Za-z]/i.test(t)&&t.length<60&&!title){ const m=t.match(/\bvs\.?\s+(.+)$/i); title=m[1].replace(/[^A-Za-z0-9 .&'-]/g,'').trim(); if(title===title.toUpperCase()) title=title.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); return; }
+      let num=null; const m=t.match(/^\s*(?:#\s*)?(\d{1,2})\s*[.)\-:]\s+(.+)$/); if(m){ num=+m[1]; t=m[2]; }
+      t=t.replace(/^[•\-–*·]+\s*/,'').trim();
+      if(t.length<2||t.length>48||/^\d+([.:\/-]\d+)*$/.test(t)) return;
+      if(/^(notes?|reminders?|keys?|remember|coach(es)?|watch|vs\b|week\b|date\b)\b/i.test(t)||/:\s*\S/.test(t)&&!/^\d/.test(t)||t.split(/\s+/).length>6) return;
+      let use=st;
+      if(st.script){ if(num!=null) st.numbered=true; else if(st.numbered) use={bucket:null,type:st.type,hash:st.hash,script:false}; }
+      found.push({text:t,b:use.bucket?new Set(use.bucket):new Set(),type:use.type||null,hash:use.hash||null,script:use.script?(num??st.n++):null,...extra});
     });
-    if(!plays.length) throw new Error('No plays found under the PLAY column.');
-    lastUpload=JSON.parse(JSON.stringify(PLAN));
-    const name=PLAN.example?(f.name.replace(/\.[^.]+$/,'').replace(/demon|template|call ?sheet|\bvs\.?\b|\(\d+\)/ig,'').replace(/[_-]+/g,' ').trim()||'This week'):PLAN.name;
-    PLAN={name,t:0,plays,script:script.sort((a,b)=>a[0]-b[0]).map(x=>x[1])};
-    savePlan(); renderSheet(); render(); $('undoUpload').hidden=false;
-    const none=plays.filter(p=>!p.b.length).length;
-    toast(`Loaded ${plays.length} plays${PLAN.script.length?`, ${PLAN.script.length} scripted`:''}.`+(none?` ${none} have no situations marked, so they won't be called.`:''));
+  };
+  grids.forEach(g=>{
+    const H=g.map(row=>row.map(v=>{ const s=String(v??''); return s.startsWith('\u0000')?{merged:true,h:impHeader(s.slice(1))}:{h:impHeader(s)}; }));
+    const used=new Set(), key=(r,c)=>r+','+c;
+    // Row layout: "3RD SHORT | Power | Sneak | Stick"
+    g.forEach((row,r)=>row.forEach((v,c)=>{
+      const h=H[r][c].h; if(!h||h.kind!=='bucket'&&h.kind!=='script'||H[r][c].merged) return;
+      const right=[]; for(let k=c+1;k<row.length;k++){ const x=String(row[k]??'').trim(); if(!x) continue; if(H[r][k].h) break; right.push(k); }
+      const below=String((g[r+1]||[])[c]??'').trim(), belowH=below?(H[r+1][c].h):null;
+      if(right.length>=2&&(!below||belowH)){ used.add(key(r,c)); headersSeen.push(String(v));
+        const st={bucket:h.kind==='bucket'?h.b:null,script:h.kind==='script',n:1};
+        right.forEach(k=>{ used.add(key(r,k)); add(g[r][k],st); }); }
+    }));
+    // Column layout: a header sets the situation for everything under it in that column.
+    const cols=Math.max(0,...g.map(r=>r.length)), state=[];
+    for(let c=0;c<cols;c++) state[c]={bucket:null,type:null,hash:null,script:false,n:1,row:-1};
+    for(let r=0;r<g.length;r++) for(let c=0;c<cols;c++){
+      const v=String((g[r]||[])[c]??''); if(!v.replace('\u0000','').trim()||used.has(key(r,c))) continue;
+      const h=H[r][c].h, st=state[c];
+      if(h){ if(!H[r][c].merged||true) headersSeen.push(v.replace('\u0000',''));
+        if(h.kind==='bucket'){ Object.assign(st,{bucket:h.b,type:null,hash:null,script:false,row:r}); }
+        else if(h.kind==='script'){ Object.assign(st,{bucket:null,type:null,hash:null,script:true,n:1,row:r}); }
+        else if(h.kind==='type') st.type=h.type; else if(h.kind==='hash') st.hash=h.hash;
+        continue; }
+      if(v.startsWith('\u0000')) continue;          // the rest of a merged play cell
+      let use=st;
+      if(!st.bucket&&!st.script){ for(let k=c-1;k>=0;k--){ const s2=state[k]; if((s2.bucket||s2.script)&&s2.row<=r){ use=s2; break; } } }
+      add(v,use);
+    }
+  });
+  return {found,title,headers:[...new Set(headersSeen.map(h=>h.trim()))]};
+}
+// Merge duplicates and turn findings into plays.
+function impBuild(found){
+  const by=new Map(), script=[];
+  found.forEach(f=>{
+    const k=impNorm(f.text); let p=by.get(k);
+    if(!p){ const sp=impSplit(f.text), cl=impClassify(f.text); p={id:uid(),name:sp.name,form:sp.form,type:f.type||cl.type,sure:!!f.type||cl.sure,hash:f.hash||'any',stars:2,b:new Set()}; by.set(k,p); }
+    f.b.forEach(x=>p.b.add(x)); if(f.type){ p.type=f.type; p.sure=true; } if(f.hash) p.hash=f.hash;
+    if(f.script!=null) script.push([f.script,p.id]);
+  });
+  const plays=[...by.values()].map(p=>({...p,b:[...p.b]}));
+  return {plays,script:script.sort((a,b)=>a[0]-b[0]).map(x=>x[1]).filter((v,i,a)=>a.indexOf(v)===i)};
+}
+
+function templateParse(rows){
+  const hi=rows.findIndex(r=>r.some(c=>colFor(c)==='name'));
+  if(hi<0) return null;
+  const map=rows[hi].map(colFor); if(!map.some(k=>k&&k.startsWith('b:'))) return null;
+  const plays=[], script=[];
+  rows.slice(hi+1).forEach(r=>{
+    const o={id:uid(),name:'',form:'',type:'Run',hash:'any',stars:2,b:[],sure:true}; let sn=null;
+    map.forEach((k,i)=>{ const v=String(r[i]??'').trim(); if(!k||!v) return;
+      if(k==='name') o.name=v; else if(k==='form') o.form=v;
+      else if(k==='type') o.type=/^P/i.test(v)?'Pass':'Run';
+      else if(k==='hash') o.hash=/^L/i.test(v)?'L':/^R/i.test(v)?'R':/^M|^C/i.test(v)?'M':'any';
+      else if(k==='stars') o.stars=Math.max(1,Math.min(3,(v.match(/★/g)||[]).length||parseInt(v)||2));
+      else if(k==='script') sn=parseInt(v)||null;
+      else if(k.startsWith('b:')&&!/^(n|no|0|false|-)$/i.test(v)) o.b.push(k.slice(2)); });
+    if(o.name){ plays.push(o); if(sn) script.push([sn,o.id]); }
+  });
+  return plays.length?{plays,script:script.sort((a,b)=>a[0]-b[0]).map(x=>x[1]),template:true}:null;
+}
+let IMP=null;   // the import waiting for review
+async function importFile(f){
+  if(!f) return;
+  $('sheetPanel').hidden=false;
+  try{
+    if(/\.(pdf|docx?|png|jpe?g|heic|gif|pages|numbers)$/i.test(f.name)) throw new Error('That file type cannot be read here. Save or export the call sheet as Excel (.xlsx) or CSV, then drop it in.');
+    if(!window.XLSX) throw new Error('The spreadsheet tool did not load. Check the signal and try again.');
+    let grids;
+    if(/\.(txt|tsv)$/i.test(f.name)){ grids=[(await f.text()).split(/\r?\n/).map(l=>l.split('\t'))]; }
+    else { const wb=XLSX.read(await f.arrayBuffer(),{cellStyles:false}); grids=wb.SheetNames.map(n=>impGrid(wb.Sheets[n])).filter(g=>g.some(r=>r.some(v=>String(v).trim()))); }
+    if(!grids.length) throw new Error('That file looks empty.');
+    const tpl=templateParse(grids[0]);
+    let res, title='', headers=[], unplaced=[];
+    if(tpl){ res=tpl; }
+    else {
+      const a=impAnalyze(grids); title=a.title; headers=a.headers;
+      if(!a.found.length) throw new Error("Couldn't find any plays in that file.");
+      res=impBuild(a.found);
+    }
+    const fileName=f.name.replace(/\.[^.]+$/,'').replace(/demon|template|call ?sheet|\bvs\.?\b|\(\d+\)/ig,'').replace(/[_-]+/g,' ').trim();
+    IMP={file:f.name,plays:res.plays,script:res.script,template:!!res.template,headers,name:title||(PLAN.example?fileName:PLAN.name)||'This week',pick:'rest'};
+    renderReview(); $('review').scrollIntoView({block:'start',behavior:'smooth'});
   }catch(err){ toast(err.message||'Could not read that file.'); }
-};
+}
+function renderReview(){
+  const R=$('review'); if(!IMP){ R.hidden=true; R.innerHTML=''; return; }
+  R.hidden=false;
+  const P=IMP.plays, inScript=new Set(IMP.script), none=P.filter(p=>!p.b.length&&!inScript.has(p.id)), unsure=P.filter(p=>!p.sure);
+  const bucketsFound=BUCKETS.filter(([v])=>P.some(p=>p.b.includes(v)));
+  const prow=p=>`<div class="rv-p${p.sure?'':' unsure'}"><button class="rv-t ${p.type}" type="button" data-flip="${p.id}" title="Tap to switch run/pass">${p.type==='Run'?'RUN':'PASS'}</button><span class="rv-n">${esc(p.name)}${p.form?` <small>${esc(p.form)}</small>`:''}</span><button class="rv-x" type="button" data-drop="${p.id}" aria-label="Leave out ${esc(p.name)}">✕</button></div>`;
+  let h=`<div class="rv-head"><div><p class="lbl" style="margin:0">Here's what I found in ${esc(IMP.file)}</p>
+      <p class="rv-sum"><b>${P.length}</b> plays · <b>${bucketsFound.length}</b> situations${IMP.script.length?` · <b>${IMP.script.length}</b> on the opening script`:''}${unsure.length?` · <b class="warnc">${unsure.length}</b> run/pass guesses to check`:''}</p></div>
+    <label class="pf" style="min-width:200px"><span class="lbl">Opponent</span><input id="rvName" value="${esc(IMP.name)}" maxlength="40"></label></div>`;
+  if(unsure.length) h+=`<p class="note">Plays with a <b class="warnc">yellow</b> tag are guesses. Tap RUN/PASS to switch any that are wrong. Tap ✕ to leave a line out (for example a note that isn't a play).</p>`;
+  else h+=`<p class="note">Tap RUN/PASS to switch any that are wrong. Tap ✕ to leave a line out.</p>`;
+  if(IMP.script.length) h+=`<div class="rv-g"><h4>Opening script</h4><div class="rv-list">${IMP.script.map((id,i)=>{ const p=P.find(x=>x.id===id); return p?`<div class="rv-p"><span class="rv-num">${i+1}</span>${prow(p).replace('<div class="rv-p','<span class="rv-in').replace(/<\/div>$/,'</span>')}</div>`:''; }).join('')}</div></div>`;
+  bucketsFound.forEach(([v,l])=>{ const ps=P.filter(p=>p.b.includes(v)); h+=`<div class="rv-g"><h4>${l} <small>${ps.length} · ${ps.filter(p=>p.type==='Run').length} run, ${ps.filter(p=>p.type==='Pass').length} pass</small></h4><div class="rv-list">${ps.map(prow).join('')}</div></div>`; });
+  if(none.length) h+=`<div class="rv-g rv-none"><h4>Not under a situation header <small>${none.length}</small></h4>
+      <div class="planbar"><label class="lbl" for="rvPut" style="margin:0">Put these in</label><select id="rvPut"><option value="">Leave them out</option>${BUCKETS.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>
+      <div class="rv-list">${none.map(prow).join('')}</div></div>`;
+  if(!IMP.template&&IMP.headers.length) h+=`<p class="note">Situation headers it recognized: ${IMP.headers.slice(0,24).map(esc).join(' · ')}</p>`;
+  h+=`<div class="pf-act"><button class="btn btn-red" type="button" id="rvUse">Use this call sheet</button>${!PLAN.example&&PLAN.plays.length?'<button class="btn" type="button" id="rvAdd">Add to my current call sheet</button>':''}<button class="btn" type="button" id="rvCancel">Cancel</button></div>`;
+  R.innerHTML=h;
+  R.querySelectorAll('[data-flip]').forEach(b=>b.onclick=()=>{ const p=P.find(x=>x.id===b.dataset.flip); p.type=p.type==='Run'?'Pass':'Run'; p.sure=true; renderReview(); });
+  R.querySelectorAll('[data-drop]').forEach(b=>b.onclick=()=>{ IMP.plays=P.filter(x=>x.id!==b.dataset.drop); IMP.script=IMP.script.filter(x=>x!==b.dataset.drop); renderReview(); });
+  $('rvName').oninput=e=>IMP.name=e.target.value;
+  $('rvCancel').onclick=()=>{ IMP=null; renderReview(); };
+  const finish=mode=>{
+    const put=$('rvPut')?$('rvPut').value:'';
+    let plays=IMP.plays.map(p=>{ const q={id:p.id,name:p.name,form:p.form,type:p.type,hash:p.hash||'any',stars:p.stars||2,b:[...p.b]}; if(!q.b.length&&put&&!IMP.script.includes(p.id)) q.b=[put]; return q; })
+      .filter(p=>p.b.length||IMP.script.includes(p.id));
+    lastUpload=JSON.parse(JSON.stringify(PLAN));
+    const name=(IMP.name||'').trim()||'This week';
+    if(mode==='add'){
+      const byName=new Map(PLAN.plays.map(p=>[impNorm(p.form+' '+p.name),p]));
+      const idMap={};
+      plays.forEach(p=>{ const k=impNorm(p.form+' '+p.name), ex=byName.get(k); if(ex){ ex.b=[...new Set(ex.b.concat(p.b))]; idMap[p.id]=ex.id; } else { PLAN.plays.push(p); byName.set(k,p); idMap[p.id]=p.id; } });
+      PLAN.script=PLAN.script.concat(IMP.script.map(id=>idMap[id]).filter(id=>id&&!PLAN.script.includes(id)));
+    } else PLAN={name,t:0,plays,script:IMP.script.filter(id=>plays.some(p=>p.id===id))};
+    const n=plays.length; IMP=null; renderReview(); savePlan(); renderSheet(); render(); $('undoUpload').hidden=false;
+    toast(mode==='add'?`Added ${n} plays to your call sheet.`:`Loaded ${n} plays for ${PLAN.name}${PLAN.script.length?`, ${PLAN.script.length} scripted`:''}.`);
+  };
+  $('rvUse').onclick=()=>finish('use');
+  if($('rvAdd')) $('rvAdd').onclick=()=>finish('add');
+}
+$('sheetFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; importFile(f); };
+// drag and drop anywhere on the page
+let dragN=0;
+const hasFiles=e=>[...(e.dataTransfer?.types||[])].includes('Files');
+addEventListener('dragenter',e=>{ if(!hasFiles(e)) return; e.preventDefault(); dragN++; $('dropcover').hidden=false; });
+addEventListener('dragover',e=>{ if(!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+addEventListener('dragleave',e=>{ if(!hasFiles(e)) return; dragN=Math.max(0,dragN-1); if(!dragN) $('dropcover').hidden=true; });
+addEventListener('drop',e=>{ if(!hasFiles(e)) return; e.preventDefault(); dragN=0; $('dropcover').hidden=true; importFile(e.dataTransfer.files[0]); });
 $('undoUpload').onclick=()=>{ if(!lastUpload) return; PLAN=lastUpload; lastUpload=null; savePlan(); $('undoUpload').hidden=true; renderSheet(); render(); toast('Put the call sheet back the way it was.'); };
 
 /* ---------- theme (shared with the defense side) ---------- */
