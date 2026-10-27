@@ -201,6 +201,23 @@ td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
 .rv-x:hover{color:var(--red)}
 .rv-num{font:800 16px var(--display);color:var(--red);min-width:18px;text-align:center}
 .rv-none{border-top:1px dashed var(--line);padding-top:10px}
+#halfBody{display:flex;flex-direction:column;gap:18px}
+.hp-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.hp-title{font:800 26px/1.05 var(--display);text-transform:uppercase;margin:2px 0 0}
+.hp-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+@media (max-width:900px){.hp-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:520px){.hp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat.bad{border-color:var(--red)} .stat.bad b{color:var(--red)}
+.hp-grid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) minmax(0,1.1fr);gap:14px;align-items:start}
+.hp-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:900px){.hp-grid,.hp-two{grid-template-columns:1fr}}
+.hp-rp{display:flex;flex-direction:column;gap:8px}
+td.m{font-family:var(--mono);font-size:12px}
+.hp-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-weight:600}
+.hp-chips{display:flex;flex-wrap:wrap;gap:6px}
+.hp-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--bg);font:700 14px var(--display);text-transform:uppercase}
+.hp-chip.ok{border-color:var(--good)} .hp-chip.no{border-color:var(--red)}
+.hp-chip b{color:var(--red)}
 #toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-weight:600;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
 </style>
 
@@ -214,6 +231,7 @@ td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
     <div class="hdr-ctl">
       <a class="btn" href="index.html#defense">← Defense side</a>
       <button class="btn btn-red" id="sheetBtn" type="button">Call sheet</button>
+      <button class="btn btn-ink" id="halfBtn" type="button">Halftime report</button>
       <button class="btn" id="newGame" type="button">New game</button>
       <button class="btn" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
     </div>
@@ -257,6 +275,13 @@ td{padding:6px;border-bottom:1px solid var(--line);white-space:nowrap}
     <div id="sheetList"></div>
   </section>
 
+  <section class="panel halfp" id="halfPanel" hidden aria-label="Halftime report">
+    <div class="hp-head">
+      <div><p class="lbl" style="margin:0">Halftime report</p><h2 class="hp-title" id="hpTitle"></h2></div>
+      <div class="pf-act"><div class="chips" id="hpScope"></div><button class="btn" id="halfClose" type="button">Close</button></div>
+    </div>
+    <div id="halfBody"></div>
+  </section>
   <div class="minicall" id="minicall" aria-live="polite"></div>
 
   <div class="grid">
@@ -416,7 +441,7 @@ function scriptNext(){ for(const id of PLAN.script){ if(SKIPPED_SCRIPT.includes(
 let pending=null;   // the play just called, waiting for a result
 function sitText(){ return `${ord(S.dn)} & ${S.dist>=S.ytg?'Goal':S.dist} · ${spotLabel(S.ytg)} · ${HASHN[S.hash]} · Q${S.qtr>4?'OT':S.qtr} · ${S.us}-${S.them}${S.mode!=='normal'?' · '+(S.mode==='2min'?'Two-minute':'Four-minute'):''}`; }
 function render(){
-  headerUI(); situationUI();
+  headerUI(); situationUI(); if(!$('halfPanel').hidden) halfReport();
   const R=scorePlays(), top=R.list[0], alts=R.list.slice(1,4), sc=scriptNext();
   const tot=R.list.reduce((s,x)=>s+x.w,0);
   const pct=x=>tot?Math.round(x.w/tot*100):0;
@@ -459,7 +484,7 @@ function render(){
 function callPlay(pid,script){
   const p=PLAN.plays.find(x=>x.id===pid); if(!p) return;
   if(pending&&!pending.res){ /* replace an unanswered call */ }
-  const e={id:uid(),pid,name:p.name,type:p.type,dn:S.dn,dist:S.dist,ytg:S.ytg,res:null,script:!!script};
+  const e={id:uid(),pid,name:p.name,form:p.form||'',type:p.type,dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,qtr:S.qtr,mode:S.mode,res:null,script:!!script};
   LOG.push(e); pending=e; SKIP=[]; saveGame(); render(); toast(`Called ${p.name}.`);
 }
 function setResult(r){
@@ -473,6 +498,81 @@ $('newGame').onclick=()=>{
   delete $('newGame').dataset.arm; $('newGame').textContent='New game';
   LOG=[]; SKIPPED_SCRIPT=[]; ls.set('dpo-skipscript',[]); pending=null; S=Object.assign({},S0); saveGame(); kpReset(); render(); toast('New game. Tonight\'s log and score are cleared.');
 };
+
+/* ---------- halftime report ---------- */
+let hpScope='half';
+const WORKED=r=>['big','good','td'].includes(r);
+const RESN={big:'Big play',good:'Good',bad:'No gain / loss',td:'Touchdown',to:'Turnover'};
+function halfReport(){
+  const ran=LOG.filter(l=>!l.skipped);
+  const hasQ=ran.some(l=>l.qtr);
+  const L0=hpScope==='half'&&hasQ?ran.filter(l=>!l.qtr||l.qtr<=2):ran;
+  const D=L0.filter(l=>l.res), n=L0.length;
+  $('hpTitle').textContent=`${PLAN.example?'Example call sheet':'vs '+PLAN.name} · ${hpScope==='half'?'1st half':'Whole game so far'} · Demons ${S.us}, Them ${S.them}`;
+  chipRow($('hpScope'),[['half','1st half'],['game','Whole game']].map(([v,t])=>({v,t})),v=>hpScope===v,v=>{ hpScope=v; });
+  if(!n){ $('halfBody').innerHTML='<p class="empty">No plays called yet. Every play you call with <b>Call it</b> and mark with a result shows up here.</p>'; return; }
+  const pct=(a,b)=>b?Math.round(a/b*100):0;
+  const runs=L0.filter(l=>l.type==='Run'), pass=L0.filter(l=>l.type==='Pass');
+  const okOf=a=>{ const d=a.filter(l=>l.res); return {n:d.length,ok:d.filter(l=>WORKED(l.res)).length}; };
+  const rate=a=>{ const o=okOf(a); return o.n?`${pct(o.ok,o.n)}%`:'—'; };
+  const sub=a=>{ const o=okOf(a); return o.n?`${o.ok} of ${o.n} worked`:'no results yet'; };
+  const big=D.filter(l=>l.res==='big'||l.res==='td').length, tos=D.filter(l=>l.res==='to').length, tds=D.filter(l=>l.res==='td').length;
+  // 3rd/4th down: a good result counts as moving the chains
+  const third=L0.filter(l=>l.dn>=3), t3=okOf(third);
+  // field zones
+  const zones=[['Backed up',l=>l.ytg>=90],['Own territory',l=>l.ytg>50&&l.ytg<90],['Plus territory',l=>l.ytg<=50&&l.ytg>20],['Red zone',l=>l.ytg<=20&&l.ytg>5],['Goal line',l=>l.ytg<=5]];
+  // plays
+  const byPlay={}; L0.forEach(l=>{ const k=l.name; const p=byPlay[k]||(byPlay[k]={name:k,form:l.form||'',type:l.type,n:0,d:0,ok:0,big:0,bad:0}); p.n++; if(l.res){ p.d++; if(WORKED(l.res)) p.ok++; if(l.res==='big'||l.res==='td') p.big++; if(l.res==='bad'||l.res==='to') p.bad++; } });
+  const plays=Object.values(byPlay);
+  const hot=plays.filter(p=>p.d&&p.ok/p.d>=.6).sort((a,b)=>b.ok-a.ok||b.big-a.big).slice(0,5);
+  const cold=plays.filter(p=>p.d&&p.ok/p.d<.4).sort((a,b)=>b.bad-a.bad).slice(0,5);
+  // tendencies
+  const tend=[];
+  [1,2,3].forEach(d=>{ const a=L0.filter(l=>(d===3?l.dn>=3:l.dn===d)); if(a.length>=4){ const r=a.filter(l=>l.type==='Run').length/a.length;
+    if(r>=.75) tend.push(`You've run on ${d===3?'3rd/4th':ord(d)} down ${a.filter(l=>l.type==='Run').length} of ${a.length} times.`);
+    if(r<=.25) tend.push(`You've thrown on ${d===3?'3rd/4th':ord(d)} down ${a.filter(l=>l.type==='Pass').length} of ${a.length} times.`); } });
+  ['L','R'].forEach(h=>{ const a=L0.filter(l=>l.hash===h); if(a.length>=4){ const r=a.filter(l=>l.type==='Run').length/a.length; if(r>=.8||r<=.2) tend.push(`From the ${HASHN[h].toLowerCase()} you've ${r>=.8?'run':'thrown'} ${Math.round((r>=.8?r:1-r)*100)}% of the time.`); } });
+  const forms={}; L0.forEach(l=>{ if(!l.form) return; const f=forms[l.form]||(forms[l.form]={n:0,r:0}); f.n++; if(l.type==='Run') f.r++; });
+  Object.entries(forms).forEach(([f,o])=>{ if(o.n>=3&&(o.r===o.n||o.r===0)) tend.push(`Every snap from ${f} (${o.n}) has been a ${o.r?'run':'pass'}.`); });
+  const repeat=plays.filter(p=>p.n>=4).sort((a,b)=>b.n-a.n)[0]; if(repeat) tend.push(`${repeat.name} has been called ${repeat.n} times.`);
+  // unused call sheet plays, best first
+  const usedIds=new Set(ran.map(l=>l.pid));
+  const unused=PLAN.plays.filter(p=>!usedIds.has(p.id)).sort((a,b)=>(b.stars||2)-(a.stars||2)).slice(0,10);
+  const untouched=BUCKETS.filter(([v])=>PLAN.plays.some(p=>(p.b||[]).includes(v))&&!PLAN.plays.filter(p=>(p.b||[]).includes(v)).some(p=>usedIds.has(p.id))).map(b=>b[1]);
+  const scr=PLAN.script.map(id=>{ const l=ran.find(x=>x.pid===id&&x.script); const p=PLAN.plays.find(x=>x.id===id); return p?{p,l,skip:SKIPPED_SCRIPT.includes(id)}:null; }).filter(Boolean);
+  const row=(label,a,extra='')=>`<tr><td>${label}</td><td class="m">${a.length}</td><td class="m">${a.length?pct(a.filter(l=>l.type==='Run').length,a.length)+'%':'—'}</td><td class="m">${rate(a)}</td><td class="m">${extra}</td></tr>`;
+  let h=`<div class="hp-kpis">
+    <div class="stat"><b>${n}</b><span>Plays called</span></div>
+    <div class="stat"><b>${pct(runs.length,n)}% / ${pct(pass.length,n)}%</b><span>Run / pass</span></div>
+    <div class="stat"><b>${rate(L0)}</b><span>Plays that worked · ${sub(L0)}</span></div>
+    <div class="stat"><b>${t3.n?pct(t3.ok,t3.n)+'%':'—'}</b><span>3rd/4th down · ${t3.n?`${t3.ok} of ${t3.n} moved the chains`:'none yet'}</span></div>
+    <div class="stat"><b>${big}</b><span>Big plays${tds?` · ${tds} TD`:''}</span></div>
+    <div class="stat${tos?' bad':''}"><b>${tos}</b><span>Turnovers</span></div></div>`;
+  h+=`<div class="hp-grid">
+    <div><p class="lbl">Run vs pass</p><div class="hp-rp">
+      <div class="stat"><span class="tag Run">RUN</span> <b>${rate(runs)}</b><span>${runs.length} called · ${sub(runs)}</span></div>
+      <div class="stat"><span class="tag Pass">PASS</span> <b>${rate(pass)}</b><span>${pass.length} called · ${sub(pass)}</span></div></div></div>
+    <div><p class="lbl">By down</p><div class="log"><table><thead><tr><th>Down</th><th>Plays</th><th>Run</th><th>Worked</th><th></th></tr></thead><tbody>
+      ${row('1st down',L0.filter(l=>l.dn===1))}${row('2nd down',L0.filter(l=>l.dn===2))}${row('3rd / 4th',third)}
+      ${row('2nd & long (7+)',L0.filter(l=>l.dn===2&&l.dist>=7))}${row('3rd & short (1-3)',L0.filter(l=>l.dn>=3&&l.dist<=3))}${row('3rd & long (7+)',L0.filter(l=>l.dn>=3&&l.dist>=7))}
+    </tbody></table></div></div>
+    <div><p class="lbl">By field zone</p><div class="log"><table><thead><tr><th>Zone</th><th>Plays</th><th>Run</th><th>Worked</th><th>TD</th></tr></thead><tbody>
+      ${zones.map(([z,f])=>{ const a=L0.filter(f); return a.length?row(z,a,a.filter(l=>l.res==='td').length||''):''; }).join('')||'<tr><td colspan="5" class="note">No plays yet.</td></tr>'}
+    </tbody></table></div></div></div>`;
+  const plist=(a,empty)=>a.length?a.map(p=>`<div class="alt"><div><span class="tag ${p.type}">${p.type==='Run'?'R':'P'}</span> <b>${esc(p.name)}</b><small>${esc(p.form||'')} · ${p.ok} of ${p.d} worked${p.big?` · ${p.big} big`:''}${p.n>p.d?` · ${p.n-p.d} no result`:''}</small></div></div>`).join(''):`<p class="note">${empty}</p>`;
+  h+=`<div class="hp-grid hp-two">
+    <div><p class="lbl">Working — go back to these</p><div class="alts">${plist(hot,'Nothing has worked 60%+ yet with a result marked.')}</div></div>
+    <div><p class="lbl">Not working — think twice</p><div class="alts">${plist(cold,'Nothing is struggling yet.')}</div></div></div>`;
+  h+=`<div class="hp-grid hp-two">
+    <div><p class="lbl">What their press box sees in you</p>${tend.length?`<ul class="hp-list">${tend.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<p class="note">No strong tendencies yet. You are mixing it up.</p>'}</div>
+    <div><p class="lbl">Haven't called yet</p>${unused.length?`<div class="hp-chips">${unused.map(p=>`<span class="hp-chip"><span class="tag ${p.type}">${p.type==='Run'?'R':'P'}</span> ${esc(p.name)} <span class="stars">${'★'.repeat(p.stars||1)}</span></span>`).join('')}</div>`:'<p class="note">You have called every play on the sheet.</p>'}
+      ${untouched.length?`<p class="note" style="margin-top:8px">Sections with nothing called: ${untouched.map(esc).join(', ')}.</p>`:''}</div></div>`;
+  if(scr.length) h+=`<div><p class="lbl">Opening script</p><div class="hp-chips">${scr.map((s,i)=>`<span class="hp-chip${s.l&&s.l.res?(WORKED(s.l.res)?' ok':' no'):''}"><b>${i+1}</b> ${esc(s.p.name)} · ${s.l?(s.l.res?RESN[s.l.res]:'called'):s.skip?'skipped':'not called'}</span>`).join('')}</div></div>`;
+  $('halfBody').innerHTML=h;
+}
+function openHalf(){ $('halfPanel').hidden=false; halfReport(); $('halfPanel').scrollIntoView({block:'start',behavior:'smooth'}); }
+$('halfBtn').onclick=()=>{ if($('halfPanel').hidden) openHalf(); else $('halfPanel').hidden=true; };
+$('halfClose').onclick=()=>{ $('halfPanel').hidden=true; };
 
 /* ---------- situation controls ---------- */
 const sideOf=y=>y>=50?'own':'opp', numOf=y=>y>=50?100-y:y, ytgFrom=(s,n)=>n===50?50:(s==='own'?100-n:n);
