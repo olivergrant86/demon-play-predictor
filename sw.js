@@ -1,5 +1,5 @@
 // Offline support for Demon Play Predictor
-const V = 'dpp-v4';
+const V = 'dpp-v5';
 const CORE = ['./', './index.html', './offense.html', './Demons-call-sheet-template.xlsx', './xlsx.full.min.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
