@@ -335,6 +335,12 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .cfrow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:4px}
 .cfc{border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;min-width:0;background:var(--bg)}
 .cfc.top{border-color:var(--ink)}
+button.cfc{font:inherit;color:var(--ink);text-align:left;cursor:pointer;align-items:flex-start}
+button.cfc:hover{border-color:var(--red)}
+button.cfc[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.cfc[aria-pressed="true"] .cfn{color:var(--bg);opacity:.8}
+button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.cf-on{color:var(--red)}
 .cfn{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cfc b{font:800 22px/1 var(--display)}
 .cfc .fbt{align-self:flex-start;font-size:10px;padding:1px 5px}
@@ -836,11 +842,16 @@ function predict(){
   const cfMix=blendAgg(cfKey);
   ['Run','Pass'].forEach(tp=>{ const e=Object.entries(cfMix).filter(([k])=>k.startsWith(tp+'|')); const tot=e.reduce((s,[,v])=>s+v,0);
     bySide[tp].cf=e.map(([k,v])=>({c:k.slice(tp.length+1),t:tp,v:tot?v/tot:0,all:v})).sort((a,b)=>b.v-a.v); });
+  const playCf={}; { const m={}; pool.forEach(r=>{ if(!r.play||!r.cf) return; const k=r.type+'|'+r.play, c=String(r.cf).trim().toUpperCase(); (m[k]||(m[k]={}))[c]=(m[k][c]||0)+1; });
+    Object.entries(m).forEach(([k,o])=>{ playCf[k]=Object.entries(o).sort((a,b)=>b[1]-a[1])[0][0]; }); }
+  ['Run','Pass'].forEach(tp=>{ bySide[tp].byCf={}; (bySide[tp].cf||[]).forEach(c=>{
+      const ps=allPlays.filter(x=>x.t===tp&&playCf[tp+'|'+x.p]===c.c), tot=ps.reduce((s,x)=>s+x.v,0);
+      bySide[tp].byCf[c.c]={n:ps.length,list:ps.slice(0,5).map(x=>({p:x.p,t:tp,v:tot?x.v/tot:0,cf:c.c}))}; }); });
   const cfOf=name=>{ for(const tp of ['Run','Pass']){ const x=(bySide[tp].cf||[]).find(c=>c.c===name); if(x) return x; } return null; };
   // Field vs boundary for each listed play, from the same weighted snaps behind the read
   const fbOf=name=>{ let f=0,b=0,n=0; sc.forEach(({r,w})=>{ if(r.play!==name) return; const v=String(r.fb||'').toUpperCase()[0]; if(v==='F'){f+=w;n++;} else if(v==='B'){b+=w;n++;} });
     if(!n||f+b<=0) return null; const pf=f/(f+b); return pf>=.5?{s:'Field',p:pf,n}:{s:'Bdry',p:1-pf,n}; };
-  ['Run','Pass'].forEach(tp=>bySide[tp].list.forEach(x=>{ x.fb=fbOf(x.p); }));
+  ['Run','Pass'].forEach(tp=>{ bySide[tp].list.forEach(x=>{ x.fb=fbOf(x.p); }); Object.values(bySide[tp].byCf||{}).forEach(g=>g.list.forEach(x=>{ x.fb=fbOf(x.p); })); });
   const fbOfCf=name=>{ let f=0,b=0,n=0; sc.forEach(({r,w})=>{ if(String(r.cf||'').trim().toUpperCase()!==name) return; const v=String(r.fb||'').toUpperCase()[0]; if(v==='F'){f+=w;n++;} else if(v==='B'){b+=w;n++;} }); if(!n||f+b<=0) return null; const pf=f/(f+b); return pf>=.5?{s:'Field',p:pf,n}:{s:'Bdry',p:1-pf,n}; };
   ['Run','Pass'].forEach(tp=>(bySide[tp].cf||[]).forEach(x=>{ x.fb=fbOfCf(x.c); }));
   // each listed play's concept, from the film
@@ -854,6 +865,8 @@ function predict(){
 function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
 const ord=d=>['1st','2nd','3rd','4th'][d-1];
 
+let CF_SEL={Run:null,Pass:null};
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-cfsel]'); if(!b) return; const [tp,c]=b.dataset.cfsel.split('|'); CF_SEL[tp]=CF_SEL[tp]===c?null:c; renderRead(); });
 function renderRead(){
   const P=predict(), run=P.type.Run||0, pass=P.type.Pass||0; LASTP=P;
   const lean=run>=pass?'Run':'Pass', lp=Math.round(Math.max(run,pass)*100);
@@ -889,11 +902,12 @@ function renderRead(){
     <div>
       ${!DATA.rows.some(r=>r.fb)?`<div class="fbwarn">Field/boundary is missing because the ${esc(DATA.team)} file on this device was loaded before that update. Tap <b>Load Hudl export</b> and pick the file again${typeof room!=='undefined'&&room?' (it will go to everyone in the room)':''}.</div>`:''}
       <div class="sides">${[lean,other].map(tp=>{ const s=P.bySide[tp], share=Math.round((tp==='Run'?run:pass)*100);
+        const sel=CF_SEL[tp]&&s.byCf&&s.byCf[CF_SEL[tp]]?CF_SEL[tp]:null, show=sel?s.byCf[sel]:null, list=show?show.list:s.list;
         return `<div class="sidegrp ${tp}${tp===lean?' lead':''}">
           <p class="lbl sg-h"><span class="tag ${tp}">${tp==='Run'?'RUN':'PASS'}</span> If they ${tp.toLowerCase()} <b>${share}%</b></p>
-          ${s.cf&&s.cf.length?`<div class="cfrow">${s.cf.slice(0,4).map((c,i)=>`<div class="cfc${i===0?' top':''}"><span class="cfn">${esc(c.c)}</span><b>${Math.round(c.v*100)}%</b>${c.fb?`<span class="fbt ${c.fb.s}${c.fb.n<3?' thin':''}">${c.fb.s==='Field'?'FIELD':'BDRY'} ${Math.round(c.fb.p*100)}%</span>`:''}</div>`).join('')}</div>`:''}
-          ${s.list.length?`<div class="plays">${s.list.map(x=>`<div class="pl"><div class="nm"><span class="pn">${x.p}</span>${x.cf?`<span class="cft">${esc(x.cf)}</span>`:''}${x.fb?`<span class="fbt ${x.fb.s}${x.fb.n<3?' thin':''}" title="${x.fb.n} snap${x.fb.n===1?'':'s'} of ${esc(x.p)} tagged field/boundary">${x.fb.s==='Field'?'FIELD':'BDRY'} ${Math.round(x.fb.p*100)}%</span>`:''}</div><div class="v">${Math.round(x.v*100)}%</div><div class="bar"><i style="width:${Math.max(1,Math.round(x.v*100))}%"></i></div></div>`).join('')}</div>
-          <p class="note sg-n">${s.n} different ${tp.toLowerCase()} play${s.n===1?'':'s'} on film${s.n>s.list.length?` · top ${s.list.length} shown`:''}</p>`:'<p class="note">None on film here.</p>'}
+          ${s.cf&&s.cf.length?`<div class="cfrow">${s.cf.slice(0,4).map((c,i)=>`<button type="button" class="cfc${i===0?' top':''}" data-cfsel="${tp}|${esc(c.c)}" aria-pressed="${sel===c.c}" title="${sel===c.c?'Show all '+tp.toLowerCase()+' plays':'Show only '+esc(c.c)+' plays'}"><span class="cfn">${esc(c.c)}</span><b>${Math.round(c.v*100)}%</b>${c.fb?`<span class="fbt ${c.fb.s}${c.fb.n<3?' thin':''}">${c.fb.s==='Field'?'FIELD':'BDRY'} ${Math.round(c.fb.p*100)}%</span>`:''}</button>`).join('')}</div>`:''}
+          ${list.length?`<div class="plays">${list.map(x=>`<div class="pl"><div class="nm"><span class="pn">${x.p}</span>${x.cf?`<span class="cft">${esc(x.cf)}</span>`:''}${x.fb?`<span class="fbt ${x.fb.s}${x.fb.n<3?' thin':''}" title="${x.fb.n} snap${x.fb.n===1?'':'s'} of ${esc(x.p)} tagged field/boundary">${x.fb.s==='Field'?'FIELD':'BDRY'} ${Math.round(x.fb.p*100)}%</span>`:''}</div><div class="v">${Math.round(x.v*100)}%</div><div class="bar"><i style="width:${Math.max(1,Math.round(x.v*100))}%"></i></div></div>`).join('')}</div>
+          <p class="note sg-n">${show?`<b class="cf-on">${esc(sel)} only</b> · % of their ${esc(sel.toLowerCase())} plays here · ${show.n} on film${show.n>list.length?`, top ${list.length} shown`:''} · tap ${esc(sel)} again for all`:`${s.n} different ${tp.toLowerCase()} play${s.n===1?'':'s'} on film${s.n>s.list.length?` · top ${s.list.length} shown`:''}${s.cf&&s.cf.length?' · tap a concept to see just its plays':''}`}</p>`:'<p class="note">None on film here.</p>'}
         </div>`; }).join('')}</div>
     </div>
     <div class="stats">
@@ -918,7 +932,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 28, 8:53 PM';
+const APP_VERSION='Oct 29, 8:01 AM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
