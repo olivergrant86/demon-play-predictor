@@ -417,7 +417,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rp-page.rp-p2{margin-top:16px}
 .rp-page .ddg{min-width:9.6in;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:start} .rp-page .ddc{min-width:0}
 .rp-page .ddb{break-inside:avoid;page-break-inside:avoid;border:1px solid #c9c1c2;border-radius:4px;margin-bottom:8px;font-size:10px}
-.rp-page .ddh{background:#151112;color:#fff;padding:3px 6px;display:flex;gap:4px;align-items:baseline} .rp-page .ddh b{font-size:12.5px} .rp-page .ddh small{opacity:.7} .rp-page .ddh span{margin-left:auto;font-size:9.5px}
+.rp-page .ddh{background:#151112;color:#fff;padding:3px 6px;display:flex;gap:4px;align-items:baseline} .rp-page .ddh b{font-size:12.5px;white-space:nowrap} .rp-page .ddh small{white-space:nowrap} .rp-page .ddh span{text-align:right} .rp-page .ddh small{opacity:.7} .rp-page .ddh span{margin-left:auto;font-size:9.5px}
 .rp-page .ddt{background:#f3f1f1;padding:2px 6px;font-size:9.5px;border-bottom:1px solid #ddd}
 .rp-page .ddf{display:flex;justify-content:space-between;padding:2px 6px;background:#fbe9ec;font-size:10.5px;font-weight:700;border-top:1px solid #e4dede}
 .rp-page .ddr{display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding:2px 6px 2px 12px;border-top:1px solid #f0ecec}
@@ -426,7 +426,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rp-page .ddr i .fl{display:inline-block;margin-left:3px;padding:0 2px;border-radius:2px;font:700 8px Consolas,monospace;background:#fff;vertical-align:1px}
 .rp-page .fl.F{color:#1d7a43;box-shadow:inset 0 0 0 1px #1d7a43} .rp-page .fl.B{color:#9a6400;box-shadow:inset 0 0 0 1px #9a6400}
 .rp-page .fb.E{color:#6b6164;border:1px solid #c9c1c2}
-.rp-page .ddf .fb{font-weight:700} .rp-page .ddr .fn .fb{margin-left:4px}
+.rp-page .ddf .fb{font-weight:700} .rp-page .ddr .fn .fb{margin-left:4px} .rp-page .ddr.ddfo{padding:3px 6px 4px;gap:3px} .rp-page .ddr.ddfo i{font-size:10px;padding:1px 5px}
 .rp-page .stx table{min-width:0} .rp-page .stx td{text-align:left;height:auto;padding:3px 5px} .rp-page .stx th{text-align:left;padding:3px 5px}
 .rp-page .stx{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rp-page .stx h3{font-size:10.5px;letter-spacing:.1em;margin:8px 0 3px;color:#fff;background:#151112;padding:3px 7px} .rp-page .stx h3:first-child{margin-top:0}
@@ -1147,7 +1147,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 29, 12:32 PM';
+const APP_VERSION='Oct 29, 12:40 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1369,7 +1369,7 @@ function openStunt(){ $('rpTitle').textContent='Stunt report'; $('reportView').s
   $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints on one landscape page.':'Print it from your Vercel site.'; }
 $('stuntBtn').onclick=openStunt;
 /* ---------- down & distance breakdown: situation -> formations -> concepts ---------- */
-function ddReport(){
+function ddReport(famOnly){
   const rows=liveRows(), skipped=DATA.rows.length-rows.length, hasCF=rows.some(r=>r.cf);
   const CF=r=>String(r.cf||'').trim().toUpperCase(), T=c=>c[0]+c.slice(1).toLowerCase();
   const FB=r=>String(r.fb||'').toUpperCase()[0], hasFB=rows.some(r=>FB(r)==='F'||FB(r)==='B');
@@ -1385,19 +1385,19 @@ function ddReport(){
   const blocks=D.map(([l,sub,fn])=>{ const g=rows.filter(fn); if(!g.length) return null;
     const rp=Math.round(g.filter(r=>r.type==='Run').length/g.length*100);
     const tot=hasCF?grp(g.filter(r=>CF(r)),CF).slice(0,4).map(([c,a])=>`${esc(T(c))} ${a.length}`).join(' · '):`${g.filter(r=>r.type==='Run').length} runs · ${g.filter(r=>r.type==='Pass').length} passes`;
-    const inner=grp(g,r=>r.fam||'—').map(([fam,fg])=>`<div class="ddf"><span>${esc(fam)} ${badge(fg,3)}</span><span>${fg.length}</span></div>`+
+    const inner=famOnly?grp(g,r=>r.fam||'—').map(([fam,fg])=>`<div class="ddf"><span>${esc(fam)} ${badge(fg,3)}</span><span>${fg.length} · ${Math.round(fg.filter(r=>r.type==='Run').length/fg.length*100)}% run</span></div><div class="ddr ddfo">${chips(fg)}</div>`).join(''):grp(g,r=>r.fam||'—').map(([fam,fg])=>`<div class="ddf"><span>${esc(fam)} ${badge(fg,3)}</span><span>${fg.length}</span></div>`+
       grp(fg,r=>r.form||'(none)').map(([fm,a])=>`<div class="ddr"><span class="fn">${esc(fm)} <em>${a.length}</em>${a.length>=2?badge(a,2):''}</span>${chips(a)}</div>`).join('')).join('');
     return `<div class="ddb"><div class="ddh"><b>${esc(l)}</b>${sub?` <small>${sub}</small>`:''}<span>${g.length} plays · ${rp}% run${(()=>{ const o=fbc(g); return hasFB&&o.t?` · ${o.f>=o.b?'Field '+Math.round(o.f/o.t*100):'Bndry '+Math.round(o.b/o.t*100)}%`:''; })()}</span></div><div class="ddt">${tot}</div>${inner}</div>`; }).filter(Boolean);
   // keep the down & distance order, split into 4 columns of about equal height
   const ht=b=>2+(b.match(/class="dd[fr]"/g)||[]).length+(b.match(/<i /g)||[]).length/4;
   const tot0=blocks.reduce((a,b)=>a+ht(b),0), cols=[[],[],[],[]]; let ci=0,acc=0;
   blocks.forEach(b=>{ const h=ht(b); if(ci<3&&acc>0&&acc+h/2>tot0/4*(ci+1)) ci++; cols[ci].push(b); acc+=h; });
-  return `<div class="ddwrap"><div class="top"><h1>${esc((DATA.team||'Opponent').toUpperCase())} <span>·</span> DOWN &amp; DISTANCE BREAKDOWN</h1><div class="sub">${rows.length} plays${skipped?` · ${skipped} garbage-time plays skipped`:''} · 4th down counted with 3rd<br>Each down &amp; distance → every formation they used → every ${hasCF?'concept':'run/pass'}, with counts · red = run, outlined = pass${hasFB?'<br><b>F 75</b> = 75% went to the field · <b>B</b> = boundary · letter on a concept = the side it went most (with how many times)':''}</div></div>`+
+  return `<div class="ddwrap"><div class="top"><h1>${esc((DATA.team||'Opponent').toUpperCase())} <span>·</span> DOWN &amp; DISTANCE ${famOnly?'BY FAMILY':'BREAKDOWN'}</h1><div class="sub">${famOnly?'Page 2 · formation families only · ':''}${rows.length} plays${skipped?` · ${skipped} garbage-time plays skipped`:''} · 4th down counted with 3rd<br>Each down &amp; distance → every ${famOnly?'formation family':'formation they used'} → every ${hasCF?'concept':'run/pass'}, with counts · red = run, outlined = pass${hasFB?'<br><b>F 75</b> = 75% went to the field · <b>B</b> = boundary · letter on a concept = the side it went most (with how many times)':''}</div></div>`+
     (hasCF?'':`<p class="cc" style="font-size:11px;color:#6b6164;margin:0 0 6px">No CONCEPT FAMILY column in this file, so each formation shows runs and passes. Add CONCEPT FAMILY in Hudl to see concepts.</p>`)+`<div class="ddg">${cols.map(c=>`<div class="ddc">${c.join('')}</div>`).join('')}</div></div>`;
 }
-function openDD(){ $('rpTitle').textContent='Down & distance'; $('reportView').setAttribute('aria-label','Down and distance breakdown'); $('rpPage').innerHTML=ddReport(); $('rpPage2').innerHTML='';
-  requestAnimationFrame(()=>{ const w=document.querySelector('.ddwrap'); if(!w) return; const h=w.scrollHeight, ww=w.scrollWidth; const z=Math.max(0.5,Math.min(1,740/h,990/ww)); w.style.setProperty('--ddz',z.toFixed(3)); }); $('rpPage2').hidden=true; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
-  $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints landscape. A big file may run onto a second page.':'Print it from your Vercel site.'; }
+function openDD(){ $('rpTitle').textContent='Down & distance'; $('reportView').setAttribute('aria-label','Down and distance breakdown'); $('rpPage').innerHTML=ddReport(false); $('rpPage2').innerHTML=ddReport(true);
+  requestAnimationFrame(()=>document.querySelectorAll('.ddwrap').forEach(w=>{ const h=w.scrollHeight, ww=w.scrollWidth; const z=Math.max(0.5,Math.min(1,740/h,990/ww)); w.style.setProperty('--ddz',z.toFixed(3)); })); $('rpPage2').hidden=false; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
+  $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints front and back: every formation, then families only.':'Print it from your Vercel site.'; }
 $('ddBtn').onclick=openDD;
 
 
