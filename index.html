@@ -415,6 +415,24 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rp-page table.sitt{min-width:0} .rp-page .lower td{text-align:left;height:18px;font-size:10.5px} .rp-page .lower td.m{text-align:center}
 .rp-page .key{font-size:10px;color:#6b6164;line-height:1.5;border:1px solid #ddd6d7;padding:6px 8px} .rp-page .key b{color:#151112}
 .rp-page.rp-p2{margin-top:16px}
+.rp-page .stx table{min-width:0} .rp-page .stx td{text-align:left;height:auto;padding:3px 5px} .rp-page .stx th{text-align:left;padding:3px 5px}
+.rp-page .stx{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rp-page .stx h3{font-size:10.5px;letter-spacing:.1em;margin:8px 0 3px;color:#fff;background:#151112;padding:3px 7px} .rp-page .stx h3:first-child{margin-top:0}
+.rp-page .stx h3 small{font-weight:500;color:#cfc8c9;letter-spacing:.02em}
+.rp-page .stkeys{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;border:2px solid #c8102e;border-radius:4px;padding:5px 9px;margin-bottom:8px;font-size:11.5px}
+.rp-page .stkeys div:before{content:'▸ ';color:#c8102e}
+.rp-page .stx .big{font-size:13px;font-weight:800}
+.rp-page .cfd{font-size:8.5px;padding:0 5px;border-radius:8px;white-space:nowrap} .rp-page .cfd.hi{background:#d6f0d6} .rp-page .cfd.md{background:#fff1c2} .rp-page .cfd.lo{background:#eee;color:#777}
+.rp-page .stcards{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.rp-page .stc{border:1px solid #c9c1c2;border-radius:4px;padding:4px 5px;font-size:9.5px}
+.rp-page .stc .ch{display:flex;justify-content:space-between;gap:4px;margin-bottom:2px;align-items:baseline} .rp-page .stc .ch b{font-size:11px} .rp-page .stc .ch span{color:#6b6164;font-size:8.5px}
+.rp-page .sdir{display:flex;align-items:center;gap:3px;margin:2px 0} .rp-page .sdir .lb{width:30px;font-size:8.5px;text-align:center;color:#444}
+.rp-page .strk{flex:1;display:flex;height:13px;font:700 8.5px Arial,sans-serif;color:#fff;background:#eee} .rp-page .strk div{display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap}
+.rp-page .strk .l{background:#c8102e} .rp-page .strk .r{background:#333}
+.rp-page .stc .cc{color:#6b6164;font-size:8.5px;margin-top:1px} .rp-page .stc .call{margin-top:2px;font-weight:800;color:#c8102e;font-size:10px}
+.rp-page .pgo,.rp-page .pmid,.rp-page .pno{padding:1px 5px;font-size:9px;font-weight:700;white-space:nowrap} .rp-page .pgo{background:#c8102e;color:#fff} .rp-page .pmid{background:#fff1c2} .rp-page .pno{background:#e4dede;font-weight:500}
+.rp-page .stx td.trk{width:42%}
+
 .rp-page .c2g th{font-size:9.5px;line-height:1.15} .rp-page .c2g th small{display:block;font-size:8px;opacity:.75;font-weight:500}
 .rp-page .c2g td{height:auto;padding:3px 4px;vertical-align:top}
 .rp-page .c2c{text-align:left;min-width:.95in}
@@ -529,6 +547,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
         <div class="mlist" hidden>
           <button class="mi" type="button" id="tellsBtn">Tells finder</button>
           <button class="mi" type="button" id="reportBtn">Concept report</button>
+          <button class="mi" type="button" id="stuntBtn">Stunt report</button>
           <button class="mi" id="readyBtn">Ready check</button>
         </div>
       </div>
@@ -684,7 +703,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <div class="side-read" id="sBody"></div>
 </div>
 <div class="report" id="reportView" hidden role="dialog" aria-label="Concept report">
-  <div class="rp-bar"><b>Concept report</b><span class="rp-note" id="rpNote"></span><button class="btn btn-red" type="button" id="rpPrint">Print</button><button class="btn" type="button" id="rpClose">Close</button></div>
+  <div class="rp-bar"><b id="rpTitle">Concept report</b><span class="rp-note" id="rpNote"></span><button class="btn btn-red" type="button" id="rpPrint">Print</button><button class="btn" type="button" id="rpClose">Close</button></div>
   <div class="rp-page" id="rpPage"></div>
   <div class="rp-page rp-p2" id="rpPage2"></div>
 </div>
@@ -1114,7 +1133,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 29, 10:30 AM';
+const APP_VERSION='Oct 29, 12:22 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1245,9 +1264,97 @@ function conceptReport2(){
     <div class="lower"><div><h3>BIGGEST TENDENCIES</h3>${best.length?`<ol class="bt">${best.map(p=>`<li><b>${esc(p.label)}</b> on <b>${esc(p.dl)}</b>: ${esc(p.c[0]+p.c.slice(1).toLowerCase())} ${Math.round(p.p*100)}% of their ${p.tp==='Run'?'runs':'passes'} (${p.k} of ${p.n})${p.fb?`, ${p.fb.s==='F'?'field':'boundary'} ${Math.round(p.fb.p*100)}%`:''}</li>`).join('')}</ol>`:'<p class="note">No combination has 4+ plays with one concept over half the time.</p>'}</div>
     <div class="key"><b>How to read it:</b> red-tinted squares lean run, gray lean pass. The first two concepts are the side they lean (top choice, then second choice). Faded squares have fewer than 4 snaps. "·" means 0–1 snaps.<br><b>Biggest tendencies</b> are combinations with 4+ snaps where one concept is half or more of that side.</div></div>`;
 }
-function openReport(){ $('rpPage').innerHTML=conceptReport(); const p2=conceptReport2(); $('rpPage2').innerHTML=p2; $('rpPage2').hidden=!p2; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
+function openReport(){ $('rpTitle').textContent='Concept report'; $('reportView').setAttribute('aria-label','Concept report'); $('rpPage').innerHTML=conceptReport(); const p2=conceptReport2(); $('rpPage2').innerHTML=p2; $('rpPage2').hidden=!p2; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
   $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?($('rpPage2').hidden?'Prints on one landscape page.':'Prints front and back: 2 landscape pages.'):'Print it from your Vercel site.'; }
 $('reportBtn').onclick=openReport;
+/* ---------- stunt report: when and where to bring it ---------- */
+function stuntReport(){
+  const rows=liveRows(), skipped=DATA.rows.length-rows.length;
+  const CF=r=>String(r.cf||'').trim().toUpperCase(), FB=r=>String(r.fb||'').toUpperCase()[0];
+  const xk=r=>r.x?Object.keys(r.x):[];
+  const swKey=(()=>{ const ks=new Set(); rows.forEach(r=>xk(r).forEach(k=>ks.add(k))); return [...ks].find(k=>/^(ST|STR|STRONG)\s*\/?\s*(WK|WEAK)$/.test(k.replace(/\s+/g,'')))||[...ks].find(k=>/^(ST|STR)\s*\/\s*(WK|WEAK)$/.test(k)); })();
+  const strKey=(()=>{ const ks=new Set(); rows.forEach(r=>xk(r).forEach(k=>ks.add(k))); return [...ks].find(k=>/^OFF\s*STR/.test(k)); })();
+  const SW=r=>{ if(swKey&&r.x&&r.x[swKey]){ const v=r.x[swKey][0]; return v==='S'?'S':v==='W'?'W':null; }
+    if(strKey&&r.x&&r.x[strKey]&&r.dir){ const a=r.x[strKey][0], d=String(r.dir).toUpperCase()[0]; if((a==='L'||a==='R')&&(d==='L'||d==='R')) return a===d?'S':'W'; } return null; };
+  const R=rows.filter(r=>r.type==='Run'), P=rows.filter(r=>r.type==='Pass');
+  const pc=(a,b)=>b?Math.round(a/b*100):0, T=c=>c[0]+c.slice(1).toLowerCase();
+  const cfd=n=>n>=10?'<span class="cfd hi">solid</span>':n>=6?'<span class="cfd md">some</span>':'<span class="cfd lo">thin</span>';
+  const dirOf=g=>{ let s=0,w=0,f=0,b=0; g.forEach(r=>{ const x=SW(r); if(x==='S')s++; else if(x==='W')w++; const y=FB(r); if(y==='F')f++; else if(y==='B')b++; }); return {s,w,f,b}; };
+  const bar=(l,lv,r,rv)=>{ const t=lv+rv; if(!t) return `<div class="sdir"><span class="lb">${l}</span><div class="strk"></div><span class="lb">${r}</span></div>`;
+    const a=lv/t*100; return `<div class="sdir"><span class="lb">${l}</span><div class="strk"><div class="l" style="width:${a}%">${a>=14?pc(lv,t)+'%':''}</div><div class="r" style="width:${100-a}%">${a<=86?pc(rv,t)+'%':''}</div></div><span class="lb">${r}</span></div>`; };
+  const hasSW=R.some(r=>SW(r)), hasFB=R.some(r=>FB(r)==='F'||FB(r)==='B'), hasCF=rows.some(r=>r.cf);
+  const D=[['1st down',r=>r.dn===1],['2nd & short (1-3)',r=>r.dn===2&&r.dist<=3],['2nd & med (4-6)',r=>r.dn===2&&r.dist>=4&&r.dist<=6],['2nd & long (7+)',r=>r.dn===2&&r.dist>=7],
+    ['3rd & short (1-3)',r=>r.dn>=3&&r.dist<=3],['3rd & med (4-6)',r=>r.dn>=3&&r.dist>=4&&r.dist<=6],['3rd & long (7+)',r=>r.dn>=3&&r.dist>=7],['Red zone',r=>r._y<=20]];
+  const leanTxt=g=>{ const o=dirOf(g), out=[]; if(o.s+o.w) out.push(o.w>o.s?`Weak ${pc(o.w,o.s+o.w)}%`:o.s>o.w?`Strong ${pc(o.s,o.s+o.w)}%`:'ST/WK even');
+    if(o.f+o.b) out.push(o.b>o.f?`Bndry ${pc(o.b,o.f+o.b)}%`:o.f>o.b?`Field ${pc(o.f,o.f+o.b)}%`:'F/B even'); return out.join(' · ')||'—'; };
+  const topRun=g=>{ const m={}; g.forEach(r=>{ const c=CF(r); if(c) m[c]=(m[c]||0)+1; }); const e=Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; return e?`${T(e[0])} ${pc(e[1],g.length)}%`:''; };
+  const keys=[];   // [score, html]
+  // 1. when: run windows
+  const fams={}; rows.forEach(r=>{ (fams[r.fam]||(fams[r.fam]=[])).push(r); });
+  const famList=Object.entries(fams).filter(([f,g])=>f!=='—'&&g.length>=6).sort((a,b)=>b[1].length-a[1].length);
+  const win=[];
+  D.forEach(([l,fn])=>{ const g=rows.filter(fn); if(g.length>=5) win.push({l,f:'Any',g});
+    famList.forEach(([f,fg])=>{ const h=fg.filter(fn); if(h.length>=5) win.push({l,f,g:h}); }); });
+  win.forEach(w=>{ w.rr=w.g.filter(r=>r.type==='Run'); w.p=w.rr.length/w.g.length; });
+  const wins=win.filter(w=>w.p>=0.55).sort((a,b)=>b.p-a.p||b.g.length-a.g.length).slice(0,8);
+  const winRows=wins.map(w=>`<tr><td><b>${esc(w.l)}</b></td><td>${esc(w.f)}</td><td class="big">${Math.round(w.p*100)}%</td><td>${w.g.length}</td><td>${leanTxt(w.rr)}</td><td>${esc(topRun(w.rr))}</td><td>${cfd(w.g.length)}</td></tr>`).join('');
+  if(wins[0]&&wins[0].g.length>=6) keys.push([wins[0].p*Math.min(wins[0].g.length,15),`<b>${esc(wins[0].f==='Any'?wins[0].l:wins[0].f+' on '+wins[0].l)}</b> — ${Math.round(wins[0].p*100)}% run (${wins[0].g.length} snaps)`]);
+  // 2. where: by family and by run concept
+  const card=(name,g,all)=>{ const o=dirOf(g), t=o.s+o.w, u=o.f+o.b;
+    const sideCall=t>=3&&Math.max(o.s,o.w)>=0.6*t?'Stunt '+(o.w>o.s?'weak':'strong'):hasSW?'No ST/WK lean — key the back':'';
+    const fbCall=u>=3&&Math.max(o.f,o.b)>=0.6*u?(o.b>o.f?'runs to boundary':'runs to field'):'';
+    const mix=hasCF?(()=>{ const m={}; g.forEach(r=>{ const c=CF(r); if(c) m[c]=(m[c]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,k])=>`${T(c)} ${k}`).join(' · '); })():'';
+    [[o.s,o.w,'strong','weak',t],[o.f,o.b,'to the field','to the boundary',u]].forEach(([a,b,an,bn,n])=>{ if(n>=6){ const m=Math.max(a,b)/n; if(m>=0.6) keys.push([m*Math.min(n,15),`<b>${esc(name)}</b> runs go ${a>=b?an:bn} — ${a===b?50:Math.round(m*100)}% (${Math.max(a,b)} of ${n})`]); } });
+    return `<div class="stc"><div class="ch"><b>${esc(name)}</b> ${cfd(g.length)}<span>${g.length} runs${all?` of ${all} · ${pc(g.length,all)}% run`:''}</span></div>${hasSW?bar('Weak',o.w,'Strong',o.s):''}${hasFB?bar('Bndry',o.b,'Field',o.f):''}${mix?`<div class="cc">${esc(mix)}</div>`:''}<div class="call">${[sideCall,fbCall].filter(Boolean).join(' · ')||'&nbsp;'}</div></div>`; };
+  const famCards=famList.map(([f,g])=>{ const rr=g.filter(r=>r.type==='Run'); return rr.length>=3?card(f,rr,g.length):''; }).join('');
+  const rc={}; R.forEach(r=>{ const c=CF(r); if(c&&c!=='TRICK') (rc[c]||(rc[c]=[])).push(r); });
+  const conCards=Object.entries(rc).filter(([c,g])=>g.length>=4).sort((a,b)=>b[1].length-a[1].length).slice(0,6).map(([c,g])=>card(T(c)+' runs',g,0)).join('');
+  // 3. pressure on passing downs
+  const QS=r=>/QUICK|SCREEN/.test(CF(r));
+  const allq=pc(P.filter(QS).length,P.filter(r=>CF(r)).length);
+  const pres=D.map(([l,fn])=>{ const all=rows.filter(fn), g=all.filter(r=>r.type==='Pass'); if(g.length<5) return '';
+    const tg=g.filter(r=>CF(r)), q=tg.filter(QS).length, qp=pc(q,tg.length);
+    const m={}; tg.forEach(r=>m[CF(r)]=(m[CF(r)]||0)+1); const top=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([c,k])=>`${T(c)} ${pc(k,tg.length)}%`).join(', ');
+    const call=!hasCF||tg.length<5?'':qp<=20?'<span class="pgo">BRING IT</span>':qp<=40?'<span class="pmid">Games / 4-man</span>':'<span class="pno">Don\'t — they get it out</span>';
+    if(hasCF&&tg.length>=6&&qp<=20&&g.length/all.length>=0.6) keys.push([12+(20-qp)/4,`<b>${esc(l)}</b>: only ${qp}% quick/screen — bring pressure`,'p']);
+    if(hasCF&&tg.length>=8&&qp>=45) keys.push([8+qp/20,`<b>${esc(l)}</b>: ${qp}% quick/screen — don't blitz`,'p']);
+    return `<tr><td><b>${esc(l)}</b></td><td>${pc(g.length,all.length)}%</td><td>${g.length}</td><td class="big">${hasCF?qp+'%':'—'}</td><td>${esc(top)}</td><td>${call}</td><td>${cfd(tg.length)}</td></tr>`; }).join('');
+  // 4. tells that tip direction
+  const skipCol=k=>k===swKey||k===strKey||/DIR|TO\/\s*AWAY|^FIB$|^ACTION$|^TAG/.test(k);
+  const cols={}; rows.forEach(r=>{ if(r.x) for(const k in r.x) if(!skipCol(k)) (cols[k]||(cols[k]={}))[r.x[k]]=1; });
+  const base=R.length/(rows.length||1), tl=[];
+  Object.keys(cols).forEach(k=>{ const vs=Object.keys(cols[k]); if(vs.length<2||vs.length>14) return;
+    vs.forEach(v=>{ if(v==='?'||v==='NONE'&&!/MOTION|SHIFT/.test(k)) return; const g=rows.filter(r=>r.x&&r.x[k]===v); if(g.length<8) return;
+      const rr=g.filter(r=>r.type==='Run'), o=dirOf(rr), t=o.s+o.w, rp=rr.length/g.length, dl=t>=4?Math.abs(o.s-o.w)/t:0;
+      const sc=Math.abs(rp-base)+dl*0.8; if(sc<0.2) return;
+      tl.push({k,v,g,rr,o,t,rp,sc});
+      if(t>=6&&Math.max(o.s,o.w)>=0.62*t) keys.push([Math.max(o.s,o.w)/t*Math.min(t,15),`<b>${esc(T(k))}: ${esc(T(v))}</b> → runs go ${o.s>o.w?'strong':'weak'} ${pc(Math.max(o.s,o.w),t)}%`,'t:'+v]); }); });
+  tl.sort((a,b)=>b.sc-a.sc);
+  const tellRows=tl.slice(0,10).map(x=>`<tr><td>${esc(T(x.k))}: <b>${esc(T(x.v))}</b></td><td>${x.g.length}</td><td class="big">${Math.round(x.rp*100)}%</td><td class="trk">${hasSW&&x.t?bar('Weak',x.o.w,'Strong',x.o.s):'<span class="cc">not enough runs</span>'}</td><td>${cfd(x.rr.length)}</td></tr>`).join('');
+  // headline
+  const seen=new Set(), K0=keys.sort((a,b)=>b[0]-a[0]).filter(k=>{ const t=k[2]&&k[2].startsWith('t:')?k[2]:k[1].replace(/<[^>]+>/g,'').split(/ —|→|:/)[0]; if(seen.has(t)) return false; seen.add(t); return true; }), K=[...K0.filter(k=>k[2]!=='p').slice(0,4),...K0.filter(k=>k[2]==='p').slice(0,2)];
+  const games=[...new Set(DATA.rows.map(r=>r.opp).filter(Boolean))];
+  const head=`<div class="top"><h1>${esc((DATA.team||'Opponent').toUpperCase())} <span>·</span> STUNT REPORT</h1><div class="sub">${rows.length} plays · ${R.length} runs · ${P.length} passes${games.length?` from ${games.length} game${games.length===1?'':'s'}`:''}${skipped?` · ${skipped} garbage-time plays skipped`:''}<br>Red = weak / boundary · Black = strong / field${!hasSW?' · <b>no ST/ WK column — add it in Hudl for strong/weak reads</b>':''}</div></div>`;
+  const note=m=>`<p class="cc" style="font-size:10.5px;color:#6b6164">${m}</p>`;
+  return head+(K.length?`<div class="stkeys">${K.map(k=>`<div>${k[1]}</div>`).join('')}</div>`:'')+`<div class="stx"><div>
+    <h3>1 · WHEN TO STUNT <small>— where they run the most (5+ snaps)</small></h3>
+    ${winRows?`<table><tr><th>Down &amp; distance</th><th>Formation</th><th>Run</th><th>Snaps</th><th>Runs go…</th><th>Top run</th><th></th></tr>${winRows}</table>`:note('No situation with 5+ snaps runs over half the time.')}
+    <h3>3 · WHEN TO PRESSURE <small>— quick/screen share of their passes${hasCF?` (overall ${allq}%)`:''}</small></h3>
+    ${pres?`<table><tr><th>Down &amp; distance</th><th>Pass</th><th>Passes</th><th>Quick/Scr</th><th>What they throw</th><th>Call</th><th></th></tr>${pres}</table>`:note('Not enough passes by situation.')}
+    ${hasCF?'':note('Add a CONCEPT FAMILY column (QUICK, SCREENS, VERTICAL…) to see when pressure is safe.')}
+    <h3>4 · TELLS THAT TIP IT <small>— pre-snap looks: run % and run direction</small></h3>
+    ${tellRows?`<table><tr><th>Look</th><th>Snaps</th><th>Run</th><th>Runs go…</th><th></th></tr>${tellRows}</table>`:note('No tag column (back depth, backfield, hand down…) swings run % or direction much.')}
+  </div><div>
+    <h3>2 · WHERE TO STUNT <small>— which way runs go, by formation family</small></h3>
+    ${famCards?`<div class="stcards">${famCards}</div>`:note('Not enough runs per formation family.')}
+    ${conCards?`<h3>BY RUN CONCEPT <small>— stunt toward where the concept goes</small></h3><div class="stcards">${conCards}</div>`:''}
+    <div class="key" style="margin-top:8px"><b>How to read it:</b> "Stunt weak" means 60%+ of those runs went away from the strength. "Key the back" means no side lean — use where the back aligns (see Tells). Solid = 10+ snaps, some = 6–9, thin = under 6.<br><b>Pressure:</b> Bring it = 20% or less quick/screen; Games = 21–40%; Don't = over 40%.</div>
+  </div></div>`;
+}
+function openStunt(){ $('rpTitle').textContent='Stunt report'; $('reportView').setAttribute('aria-label','Stunt report'); $('rpPage').innerHTML=stuntReport(); $('rpPage2').innerHTML=''; $('rpPage2').hidden=true; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
+  $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints on one landscape page.':'Print it from your Vercel site.'; }
+$('stuntBtn').onclick=openStunt;
+
 $('rpClose').onclick=()=>{ $('reportView').hidden=true; document.documentElement.classList.remove('rp-open'); };
 $('rpPrint').onclick=()=>window.print();
 
@@ -1521,7 +1628,7 @@ $('planBtn').onclick=()=>{ const p=$('planPanel'); p.hidden=!p.hidden; if(!p.hid
 $('planClose').onclick=()=>{ $('planPanel').hidden=true; };
 
 /* ---------- staff sync (Firebase Realtime Database over REST) ---------- */
-const DB="https://demon-play-predictor-default-rtdb.firebaseio.com";
+const DB="https://demon-play-predictor-default-rtdb.firebaseio.com/";
 const ME=Math.random().toString(36).slice(2,10);
 const DEVS=['Press box','Sideline','Field'];
 let room=null, es=null, ready=false, applying=false, pubT=null, last=null, sendErr=false, warnedTeam=null;

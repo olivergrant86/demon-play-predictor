@@ -324,7 +324,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3500);}
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(_){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(_){}}};
-const DB="https://demon-play-predictor-default-rtdb.firebaseio.com", PWA=true;
+const DB="https://demon-play-predictor-default-rtdb.firebaseio.com/", PWA=true;
 const ord=d=>['1st','2nd','3rd','4th'][d-1];
 const HASHN={L:'Left hash',M:'Middle',R:'Right hash'};
 
