@@ -1099,7 +1099,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 29, 8:32 AM';
+const APP_VERSION='Oct 29, 8:37 AM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1455,7 +1455,11 @@ let room=null, es=null, ready=false, applying=false, pubT=null, last=null, sendE
 let dev='Press box';
 try{ dev=localStorage.getItem('dpp-dev')||dev; room=localStorage.getItem('dpp-room')||null; }catch(_){}
 const roomUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'.json';
-function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,tells:S.tells||{},tcfg:{on:TELLS.on,cols:TELLS.cols,team:DATA.team},team:DATA.team||'',fp:dataPrint(),by:dev,id:ME,t:Date.now(),plan:PLAN}; }
+const fbKey=k=>String(k).replace(/[.$#\[\]\/%]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());
+const fbUnkey=k=>String(k).replace(/%([0-9A-F]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));
+const encObj=o=>o&&typeof o==='object'?Object.fromEntries(Object.entries(o).map(([k,v])=>[fbKey(k),v])):o;
+const decObj=o=>o&&typeof o==='object'?Object.fromEntries(Object.entries(o).map(([k,v])=>[fbUnkey(k),v])):o;
+function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,tells:encObj(S.tells||{}),tcfg:{on:TELLS.on,cols:TELLS.cols,team:DATA.team},team:DATA.team||'',fp:dataPrint(),by:dev,id:ME,t:Date.now(),plan:PLAN}; }
 function send(){
   if(!room) return;
   const body=snap();
@@ -1467,7 +1471,7 @@ function publish(){ if(!room||!ready||applying) return; clearTimeout(pubT); pubT
 function apply(d){
   if(d.plan && d.plan.team===DATA.team && (d.plan.t||0)>(PLAN.t||0)){ PLAN={team:d.plan.team,t:d.plan.t,calls:Array.isArray(d.plan.calls)?d.plan.calls:Object.values(d.plan.calls||{})}; savePlan(false); renderPlanList(); }
   applying=true;
-  Object.assign(S,{dn:d.dn??S.dn,dist:d.dist??S.dist,ytg:d.ytg??S.ytg,hash:d.hash||S.hash,form:d.form||null,fam:d.fam||null,pers:d.pers||null,tells:d.tells&&typeof d.tells==='object'?Object.fromEntries(Object.entries(d.tells).filter(([,v])=>v)):{}});
+  Object.assign(S,{dn:d.dn??S.dn,dist:d.dist??S.dist,ytg:d.ytg??S.ytg,hash:d.hash||S.hash,form:d.form||null,fam:d.fam||null,pers:d.pers||null,tells:d.tells&&typeof d.tells==='object'?Object.fromEntries(Object.entries(decObj(d.tells)).filter(([,v])=>v)):{}});
   if(d.tcfg&&d.tcfg.team===DATA.team){ TELLS.on=d.tcfg.on!==false; TELLS.cols=Array.isArray(d.tcfg.cols)?d.tcfg.cols:Object.values(d.tcfg.cols||{}); TELLS.seen=true; saveTells(); }
   update(); applying=false;
 }
@@ -1494,16 +1498,16 @@ const dataUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_D.json';
 let pulling=false, pulledFp='';
 function shareData(quiet){
   if(!DB||!room) return Promise.resolve(false);
-  const body={team:DATA.team,rows:DATA.rows,fp:dataPrint(),by:dev,t:Date.now(),sample:DATA===SAMPLE};
+  const body={team:DATA.team,rows:DATA.rows.map(r=>r.x?{...r,x:encObj(r.x)}:r),fp:dataPrint(),by:dev,t:Date.now(),sample:DATA===SAMPLE};
   return fetch(dataUrl(),{method:'PUT',body:JSON.stringify(body)}).then(r=>{ if(!r.ok) throw 0; if(!quiet) toast('Sent '+DATA.team+' ('+DATA.rows.length+' plays) to everyone in room '+room+'.'); send(); return true; })
-    .catch(()=>{ if(!quiet) toast('Could not send the file. Check the signal and try again.'); return false; });
+    .catch(()=>{ if(!quiet) toast(navigator.onLine===false?'Could not send the file: no signal. Try again when you have a connection.':'Could not send the file to the room. Try again; if it keeps failing, tell Claude.'); return false; });
 }
 function pullData(from){
   if(!DB||!room||pulling) return;
   pulling=true;
   fetch(dataUrl()).then(r=>r.json()).then(d=>{
     if(!d||!d.rows) return;
-    const rows=(Array.isArray(d.rows)?d.rows:Object.values(d.rows)).filter(Boolean);
+    const rows=(Array.isArray(d.rows)?d.rows:Object.values(d.rows)).filter(Boolean).map(r=>r.x?{...r,x:decObj(r.x)}:r);
     if(d.fp===dataPrint()||d.fp===pulledFp) return;
     pulledFp=d.fp;
     DATA=d.sample?SAMPLE:{team:d.team,rows};
