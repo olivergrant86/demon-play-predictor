@@ -347,6 +347,53 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .cft{flex:none;font:600 10px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 6px}
 @media (max-width:560px){.cfrow{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .side-read .cfc b{font-size:clamp(24px,3vw,36px)} .side-read .cfc .fbt{font-size:clamp(11px,1.3vw,14px);padding:2px 6px} .side-read .cfn{font-size:clamp(12px,1.4vw,15px)} .side-read .cft{font-size:12px}
+.menu{position:relative}
+.mlist{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:210px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.22);padding:6px;display:flex;flex-direction:column;gap:2px}
+.mlist.mright{left:auto;right:0}
+.mi{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:600 14px var(--body);color:var(--ink);background:none;border:0;border-radius:6px;padding:10px 12px;cursor:pointer;text-decoration:none}
+.mi:hover,.mi:focus-visible{background:var(--bg);outline:none}
+.mi.gbtn[aria-pressed="true"]{color:var(--fld)}
+.mi[hidden]{display:none!important}
+.report{position:fixed;inset:0;z-index:70;background:#e9e6e6;overflow:auto;padding:calc(10px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 24px max(12px,env(safe-area-inset-left,0px))}
+.rp-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#151112;color:#fff;border-radius:10px;padding:8px 12px;margin:0 auto 12px;max-width:11in}
+.rp-bar b{font:800 18px var(--display);text-transform:uppercase;letter-spacing:.04em;flex:1}
+.rp-bar .btn{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)} .rp-bar .btn-red{background:var(--red);border-color:var(--red)}
+.rp-note{font-size:12px;opacity:.75}
+.rp-page{background:#fff;color:#151112;max-width:11in;margin:0 auto;padding:.35in;box-shadow:0 6px 24px rgba(0,0,0,.18);font-family:"Arial Narrow",Arial,sans-serif;font-size:10.5px;overflow-x:auto}
+.rp-page .top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:3px solid #c8102e;padding-bottom:5px;margin-bottom:8px;flex-wrap:wrap}
+.rp-page h1{font:800 24px "Arial Narrow",Arial,sans-serif;margin:0;letter-spacing:.02em} .rp-page h1 span{color:#c8102e}
+.rp-page .sub{font-size:11px;color:#6b6164;text-align:right;line-height:1.35}
+.rp-page .mixes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.rp-page .mx{border:1px solid #ddd6d7;border-left:5px solid #151112;padding:5px 8px;font-size:12px} .rp-page .mx.r{border-left-color:#c8102e}
+.rp-page .mx b{display:block;font-size:9px;letter-spacing:.12em;color:#6b6164}
+.rp-page table{border-collapse:collapse;width:100%;min-width:9.6in}
+.rp-page th{background:#151112;color:#fff;font-size:9px;letter-spacing:.08em;padding:4px 3px;text-align:center;font-weight:700}
+.rp-page th.grp{background:#c8102e} .rp-page th.l{text-align:left;padding-left:6px}
+.rp-page td{border:1px solid #e4dede;padding:3px;text-align:center;height:21px}
+.rp-page td.nm{text-align:left;padding-left:6px;font-weight:700;font-size:11px;white-space:nowrap}
+.rp-page tr.all td{background:#f3f1f1;font-weight:700} .rp-page tr.all td.nm{font-size:12px}
+.rp-page tr.fam td.nm{background:#151112;color:#fff;font-size:11.5px;letter-spacing:.04em}
+.rp-page tr.form td.nm{padding-left:16px;font-weight:600}
+.rp-page td.m{font-family:Consolas,monospace;font-size:10px;color:#333}
+.rp-page td.rp{position:relative;width:62px} .rp-page .rb{position:absolute;left:0;top:0;bottom:0;background:rgba(200,16,46,.16)} .rp-page td.rp i{position:relative;font-style:normal}
+.rp-page td.h b{font-size:12px} .rp-page td.z{color:#c9c1c2}
+.rp-page .fb{display:inline-block;margin-left:3px;font-family:Consolas,monospace;font-size:8.5px;padding:0 3px;border-radius:2px;background:#fff;vertical-align:1px}
+.rp-page .fb.F{color:#1d7a43;border:1px solid #1d7a43} .rp-page .fb.B{color:#9a6400;border:1px solid #9a6400}
+.rp-page td.call{width:120px;background:#fffdf6}
+.rp-page .lower{display:grid;grid-template-columns:1.25fr .75fr;gap:10px;margin-top:8px}
+.rp-page .lower h3{font-size:10px;letter-spacing:.14em;margin:0 0 3px;color:#c8102e}
+.rp-page table.sitt{min-width:0} .rp-page .lower td{text-align:left;height:18px;font-size:10.5px} .rp-page .lower td.m{text-align:center}
+.rp-page .key{font-size:10px;color:#6b6164;line-height:1.5;border:1px solid #ddd6d7;padding:6px 8px} .rp-page .key b{color:#151112}
+.rp-page .nocf{font-size:15px;line-height:1.5;padding:20px;border:2px dashed #c8102e;border-radius:10px}
+@media print{
+  @page{size:letter landscape;margin:.3in}
+  html.rp-open body{background:#fff!important;padding:0!important}
+  html.rp-open body > *:not(#reportView){display:none!important}
+  html.rp-open .report{position:static;background:#fff;padding:0;overflow:visible}
+  html.rp-open .rp-bar{display:none}
+  html.rp-open .rp-page{box-shadow:none;padding:0;max-width:none;overflow:visible}
+  html.rp-open .rp-page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 .btn-red{background:var(--red);border-color:var(--red);color:var(--red-ink)}
 .btn-red:hover{border-color:var(--ink)}
 .pill{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:6px 9px;border-radius:99px;background:#d99a00;color:#111}
@@ -420,18 +467,35 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="vs">Scouting <b id="teamName">—</b> · <span id="dataInfo"></span></div>
     </div>
     <div class="datactl">
-      <label class="btn" for="file">Load Hudl export</label>
-      <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
-      <button class="btn" id="resetData" hidden>Use sample data</button>
-      <button class="btn" id="clearSit">Clear situation</button>
-      <a class="btn" href="offense.html" id="toOff">Offense side →</a>
-      <button class="btn btn-ink" id="pbBtn">Press box mode</button>
-      <button class="btn" id="readyBtn">Ready check</button>
-      <button class="btn gbtn" type="button" data-garbage-btn aria-pressed="true" hidden>Garbage time</button>
-      <button class="btn thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
       <button class="btn" id="planBtn">Game plan</button>
-      <button class="btn" id="syncBtn" hidden>Staff sync</button>
+      <button class="btn btn-ink" id="pbBtn">Press box mode</button>
       <button class="btn btn-red" id="sideBtn">Sideline mode</button>
+      <div class="menu">
+        <button class="btn mbtn" type="button" aria-haspopup="true" aria-expanded="false">Film ▾</button>
+        <div class="mlist" hidden>
+          <label class="mi" for="file">Load Hudl export</label>
+          <button class="mi" id="resetData" hidden>Use sample data</button>
+          <button class="mi gbtn" type="button" data-garbage-btn aria-pressed="true" hidden>Garbage time</button>
+          <button class="mi" type="button" id="typoMenu">Check play names</button>
+        </div>
+      </div>
+      <div class="menu">
+        <button class="btn mbtn" type="button" aria-haspopup="true" aria-expanded="false">Reports ▾</button>
+        <div class="mlist" hidden>
+          <button class="mi" type="button" id="reportBtn">Concept report</button>
+          <button class="mi" id="readyBtn">Ready check</button>
+        </div>
+      </div>
+      <div class="menu">
+        <button class="btn mbtn" type="button" aria-haspopup="true" aria-expanded="false">More ▾</button>
+        <div class="mlist mright" hidden>
+          <button class="mi" id="syncBtn" hidden>Staff sync</button>
+          <button class="mi" id="clearSit">Clear situation</button>
+          <button class="mi thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
+          <a class="mi" href="offense.html" id="toOff">Offense side →</a>
+        </div>
+      </div>
+      <input id="file" type="file" accept=".xlsx,.xls,.csv" hidden>
       <button class="pill pill-live" id="syncPill" hidden></button>
       <span class="pill" id="net" hidden>Offline · still working</span>
     </div>
@@ -561,6 +625,10 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 <div class="side" id="side" hidden role="dialog" aria-label="Sideline mode">
   <div class="s-top"><div><span class="s-live" id="sLive" hidden></span></div><div class="s-acts"><button class="s-btn thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button><button class="s-btn" id="sExit">Exit</button></div></div>
   <div class="side-read" id="sBody"></div>
+</div>
+<div class="report" id="reportView" hidden role="dialog" aria-label="Concept report">
+  <div class="rp-bar"><b>Concept report</b><span class="rp-note" id="rpNote"></span><button class="btn btn-red" type="button" id="rpPrint">Print</button><button class="btn" type="button" id="rpClose">Close</button></div>
+  <div class="rp-page" id="rpPage"></div>
 </div>
 <div id="toast" hidden></div>
 
@@ -932,7 +1000,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 29, 8:01 AM';
+const APP_VERSION='Oct 29, 8:11 AM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -984,6 +1052,59 @@ async function runReady(){
 function openReady(){ const p=$('readyPanel'); p.hidden=false; p.scrollIntoView({block:'nearest'}); runReady(); }
 $('readyBtn').onclick=openReady; $('pbReady').onclick=openReady;
 $('readyRerun').onclick=runReady; $('readyClose').onclick=()=>{ $('readyPanel').hidden=true; };
+
+/* ---------- header menus ---------- */
+function closeMenus(except){ document.querySelectorAll('.menu').forEach(m=>{ if(m===except) return; m.querySelector('.mlist').hidden=true; m.querySelector('.mbtn').setAttribute('aria-expanded','false'); }); }
+document.querySelectorAll('.menu').forEach(m=>{
+  const b=m.querySelector('.mbtn'), l=m.querySelector('.mlist');
+  b.onclick=e=>{ e.stopPropagation(); const open=l.hidden; closeMenus(m); l.hidden=!open; b.setAttribute('aria-expanded',open); };
+  l.addEventListener('click',e=>{ if(e.target.closest('.mi')&&!e.target.closest('[data-theme-btn],[data-garbage-btn]')) setTimeout(()=>closeMenus(),0); });
+});
+document.addEventListener('click',e=>{ if(!e.target.closest('.menu')) closeMenus(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeMenus(); });
+$('typoMenu').onclick=()=>{ const l=openTypos(); if(!l.length) toast('No likely typos in play or formation names.'); };
+
+/* ---------- concept report (printable, one page) ---------- */
+function conceptReport(){
+  const rows=liveRows(), allN=DATA.rows.length, skipped=allN-rows.length;
+  const CF=r=>String(r.cf||'').trim().toUpperCase(), FB=r=>String(r.fb||'').toUpperCase()[0];
+  const has=rows.some(r=>r.cf);
+  const games=[...new Set(DATA.rows.map(r=>r.opp).filter(Boolean))];
+  const order=(tp)=>{ const m={}; rows.forEach(r=>{ if(r.type===tp&&CF(r)) m[CF(r)]=(m[CF(r)]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(x=>x[0]); };
+  const major={}; rows.forEach(r=>{ const c=CF(r); if(!c) return; const m=major[c]||(major[c]={Run:0,Pass:0}); m[r.type]=(m[r.type]||0)+1; });
+  const isType=(c,tp)=>major[c]&&major[c][tp]>=major[c][tp==='Run'?'Pass':'Run'];
+  const PC=order('Pass').filter(c=>c!=='TRICK'&&isType(c,'Pass')).slice(0,6), RC=order('Run').filter(c=>c!=='TRICK'&&isType(c,'Run')).slice(0,4);
+  const cell=(sub,c,tp)=>{ const s=sub.filter(r=>r.type===tp&&CF(r)), x=s.filter(r=>CF(r)===c); if(!s.length||!x.length) return '<td class="z">·</td>';
+    const p=x.length/s.length, f=x.filter(r=>FB(r)==='F').length, b=x.filter(r=>FB(r)==='B').length, a=Math.min(1,p/0.6)*.82;
+    const fb=f+b?`<span class="fb ${f>=b?'F':'B'}">${f>=b?'F':'B'} ${Math.round(Math.max(f,b)/(f+b)*100)}</span>`:'';
+    return `<td class="h" style="background:rgba(21,17,18,${a.toFixed(2)});color:${a>0.42?'#fff':'#151112'}"><b>${Math.round(p*100)}%</b>${fb}</td>`; };
+  const row=(label,sub,cls)=>{ const n=sub.length, r=sub.filter(x=>x.type==='Run').length, rp=n?Math.round(r/n*100):0;
+    return `<tr class="${cls}"><td class="nm">${esc(label)}</td><td class="m">${n}</td><td class="m rp"><span class="rb" style="width:${rp}%"></span><i>${rp}% R</i></td>${PC.map(c=>cell(sub,c,'Pass')).join('')}${RC.map(c=>cell(sub,c,'Run')).join('')}<td class="call"></td></tr>`; };
+  const famN={}; rows.forEach(r=>{ const f=r.fam||'—'; famN[f]=(famN[f]||0)+1; });
+  let body=row('ALL FORMATIONS',rows,'all');
+  Object.entries(famN).sort((a,b)=>b[1]-a[1]).forEach(([fam,n])=>{ if(n<5) return; const fs=rows.filter(r=>(r.fam||'—')===fam);
+    body+=row(fam+' family',fs,'fam');
+    const fc={}; fs.forEach(r=>fc[r.form]=(fc[r.form]||0)+1);
+    Object.entries(fc).sort((a,b)=>b[1]-a[1]).forEach(([f,k])=>{ if(k>=5) body+=row(f,fs.filter(r=>r.form===f),'form'); }); });
+  const mix=(sub,tp,cs)=>{ const s=sub.filter(r=>r.type===tp&&CF(r)); if(!s.length) return '—';
+    return cs.map(c=>[c,s.filter(r=>CF(r)===c).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]).map(([c,k])=>`${c[0]+c.slice(1).toLowerCase()} ${Math.round(k/s.length*100)}%`).join(' · '); };
+  const ytg=r=>r._y;
+  const sits=[['1st & 10',r=>r.dn===1],['2nd & short (1-3)',r=>r.dn===2&&r.dist<=3],['2nd & medium (4-6)',r=>r.dn===2&&r.dist>=4&&r.dist<=6],['2nd & long (7+)',r=>r.dn===2&&r.dist>=7],
+    ['3rd & short (1-3)',r=>r.dn>=3&&r.dist<=3],['3rd & medium (4-6)',r=>r.dn>=3&&r.dist>=4&&r.dist<=6],['3rd & long (7+)',r=>r.dn>=3&&r.dist>=7],['Red zone',r=>ytg(r)<=20]];
+  const srows=sits.map(([n,f])=>{ const s=rows.filter(f); return s.length?`<tr><td class="nm">${n}</td><td class="m">${s.length}</td><td class="m">${Math.round(s.filter(r=>r.type==='Pass').length/s.length*100)}% P</td><td>${mix(s,'Pass',PC)}</td></tr>`:''; }).join('');
+  const head=`<div class="top"><h1>${esc((DATA.team||'Opponent').toUpperCase())} <span>·</span> CONCEPT REPORT</h1><div class="sub">${rows.length} plays from ${games.length} game${games.length===1?'':'s'}${games.length?' (vs '+games.map(esc).join(', ')+')':''}${skipped?` · ${skipped} garbage-time plays skipped`:''}<br>Pass concepts as % of their passes · Run concepts as % of their runs · F/B = field or boundary lean</div></div>`;
+  if(!has) return head+`<p class="nocf">This ${esc(DATA.team)} file has no <b>CONCEPT FAMILY</b> column, so there's nothing to group by concept. Add that column in Hudl (like VERTICAL, FLOOD, QUICK, SCREENS, GAP, INSIDE) and load the file again.</p>`;
+  return head+`<div class="mixes"><div class="mx"><b>THEIR PASS GAME</b>${mix(rows,'Pass',PC)}</div><div class="mx r"><b>THEIR RUN GAME</b>${mix(rows,'Run',RC)}</div></div>
+    <table class="cgrid"><thead><tr><th class="l" rowspan="2">FORMATION</th><th rowspan="2">SNAPS</th><th rowspan="2">RUN %</th><th class="grp" colspan="${PC.length}">PASS CONCEPTS (% OF PASSES)</th><th class="grp r" colspan="${RC.length}">RUN CONCEPTS (% OF RUNS)</th><th rowspan="2">OUR CALL</th></tr>
+    <tr>${PC.concat(RC).map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+    <div class="lower"><div><h3>PASS CONCEPTS BY DOWN &amp; DISTANCE</h3><table class="sitt"><tbody>${srows}</tbody></table></div>
+    <div class="key"><b>How to read it:</b> darker squares are their go-to concept from that formation. "F 98" means 98% of those plays went to the field.<br><b>Formations</b> with 5+ snaps are listed under their family. Squares built on very few snaps are less reliable.<br><b>Our call</b> is blank for writing in your coverage.</div></div>`;
+}
+function openReport(){ $('rpPage').innerHTML=conceptReport(); $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
+  $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints on one landscape page.':'Print it from your Vercel site.'; }
+$('reportBtn').onclick=openReport;
+$('rpClose').onclick=()=>{ $('reportView').hidden=true; document.documentElement.classList.remove('rp-open'); };
+$('rpPrint').onclick=()=>window.print();
 
 /* ---------- side chooser ---------- */
 (function(){
