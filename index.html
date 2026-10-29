@@ -415,6 +415,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rp-page table.sitt{min-width:0} .rp-page .lower td{text-align:left;height:18px;font-size:10.5px} .rp-page .lower td.m{text-align:center}
 .rp-page .key{font-size:10px;color:#6b6164;line-height:1.5;border:1px solid #ddd6d7;padding:6px 8px} .rp-page .key b{color:#151112}
 .rp-page.rp-p2{margin-top:16px}
+.board{flex-basis:100%;margin-top:6px;border-top:1px solid rgba(128,128,128,.3);padding-top:10px} .board-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px} .ok-txt{color:#1d7a43;font-weight:700}
 .rp-page .ddg{min-width:9.6in;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:start} .rp-page .ddc{min-width:0}
 .rp-page .ddb{break-inside:avoid;page-break-inside:avoid;border:1px solid #c9c1c2;border-radius:4px;margin-bottom:8px;font-size:10px}
 .rp-page .ddh{background:#151112;color:#fff;padding:3px 6px;display:flex;gap:4px;align-items:baseline} .rp-page .ddh b{font-size:12.5px;white-space:nowrap} .rp-page .ddh small{white-space:nowrap} .rp-page .ddh span{text-align:right} .rp-page .ddh small{opacity:.7} .rp-page .ddh span{margin-left:auto;font-size:9.5px}
@@ -553,6 +554,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <button class="mi" id="resetData" hidden>Use sample data</button>
           <button class="mi gbtn" type="button" data-garbage-btn aria-pressed="true" hidden>Garbage time</button>
           <button class="mi" type="button" id="typoMenu">Check play names</button>
+          <button class="mi" type="button" id="filmLibBtn">Film saved online</button>
         </div>
       </div>
       <div class="menu">
@@ -593,6 +595,13 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="pf-act"><button class="btn btn-red" id="typoAll" type="button">Fix all</button><button class="btn" id="typoClose" type="button">Close</button></div>
     </div>
     <div class="rc-list" id="typoList"></div>
+  </section>
+  <section class="panel typop" id="filmLib" hidden aria-label="Film saved online">
+    <div class="sync-head">
+      <div><p class="lbl">Film saved online</p><p class="note">Every Hudl export you load is backed up here, newest copy per opponent. Any device can load one, in a room or not.</p></div>
+      <div class="pf-act"><button class="btn" id="filmLibClose" type="button">Close</button></div>
+    </div>
+    <div class="rc-list" id="filmList"></div>
   </section>
   <section class="panel readyp" id="readyPanel" hidden aria-label="Ready check">
     <div class="sync-head">
@@ -647,6 +656,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div><span class="lbl">Room code</span><div class="code" id="roomCode"></div></div>
       <div class="sync-info"><p class="note" id="syncStatus"></p><p class="note">Other coaches: open the app, tap Staff sync and join this code.</p></div>
       <div class="pf-act"><button class="btn" id="shareFile" type="button">Send my Hudl file to the room</button><button class="btn" id="leaveRoom">Leave room</button></div>
+      <div class="board"><div class="board-h"><div><p class="lbl">Is everyone the same?</p><p class="note" id="boardSum"></p></div><button class="btn btn-red" type="button" id="syncAll">Sync everyone</button></div><div class="rc-list" id="syncBoard"></div></div>
     </div>
   </section>
   <div class="readbar" id="readbar" aria-live="polite"></div>
@@ -928,8 +938,8 @@ function findTypos(){
 function fixName(v,m){ return String(v).split(/(\s+)/).map(w=>w.toUpperCase()===m.drop?m.keep:w).join(''); }
 function doMerge(list){
   let n=0; list.forEach(m=>DATA.rows.forEach(r=>{ const v=r[m.field]; if(v&&m.names.includes(v)){ r[m.field]=fixName(v,m); n++; } }));
-  try{ localStorage.setItem('dpp-data',JSON.stringify(DATA)); }catch(_){}
-  prep(); renderControls(); update(); beat(); if(typeof room!=='undefined'&&room&&DB) shareData(true);
+  markNewFilm(); saveData();
+  prep(); renderControls(); update(); beat(); if(DB) backupFilm().then(()=>{ if(room) shareData(true); });
   return n;
 }
 function renderTypos(){
@@ -946,6 +956,7 @@ function renderTypos(){
 function openTypos(){ const list=renderTypos(); $('typoPanel').hidden=false; $('typoPanel').scrollIntoView({block:'nearest'}); return list; }
 $('typoAll').onclick=()=>{ const list=findTypos(); const n=doMerge(list); toast(`Fixed ${list.length} typo${list.length===1?'':'s'} on ${n} play${n===1?'':'s'}.`); renderTypos(); };
 $('typoClose').onclick=()=>{ $('typoPanel').hidden=true; };
+$('filmLibBtn').onclick=openFilmLib; $('filmLibClose').onclick=()=>{ $('filmLib').hidden=true; };
 
 /* ---------- tells finder ---------- */
 // Columns that are already used elsewhere, or are results/ids/names rather than pre-snap looks.
@@ -1147,7 +1158,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 29, 12:40 PM';
+const APP_VERSION='Oct 29, 2:17 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1188,6 +1199,10 @@ async function runReady(){
       const mine=dataPrint(), bad=others.filter(p=>p.fp!==mine);
       if(!bad.length) add('ok','Every device on the same Hudl file',`${others.length+1} devices in the room (${[dev].concat(others.map(p=>p.dev)).join(', ')}), all on ${DATA.team} · ${DATA.rows.length} plays.`,null);
       else add('bad','Every device on the same Hudl file',bad.map(p=>`${p.dev} has ${p.team||'a different file'} · ${p.plays} plays`).join('; ')+`. This device has ${DATA.team} · ${DATA.rows.length} plays.`,['Send this file to all',async()=>{ await shareData(false); setTimeout(runReady,2500); }]);
+      const sig=planSig(), pbad=others.filter(p=>p.ps&&p.ps!==sig), waiting=peers.filter(p=>p.pp>0);
+      if(!pbad.length&&!planPending()) add('ok','Every device on the same game plan',`All on ${PLAN.calls.length} call${PLAN.calls.length===1?'':'s'}.`,null);
+      else add('bad','Every device on the same game plan',(pbad.length?pbad.map(p=>`${p.dev} has ${p.pc||0} calls`).join('; ')+`. This device has ${PLAN.calls.length}.`:'')+(planPending()?` This device has ${planPending()} change${planPending()===1?'':'s'} waiting to send.`:''),['Sync everyone',()=>{ syncEveryone(); setTimeout(runReady,3000); }]);
+      if(waiting.length) add('warn','Changes waiting to send',waiting.map(p=>`${p.dev}: ${p.pp}`).join('; ')+'. They go out when that device has signal.',null);
     }
   }
   const icon={ok:'✓',warn:'!',bad:'✕'};
@@ -1461,25 +1476,98 @@ function renderSide(){}
 const WHENS=[['any','Any down'],['early','1st & 2nd down'],['d1','1st down'],['s2','2nd & short (1-3)'],['m2','2nd & medium (4-6)'],['l2','2nd & long (7+)'],['short','3rd/4th & short (1-3)'],['med','3rd/4th & medium (4-6)'],['long','3rd/4th & long (7+)'],['rz','Red zone (inside 20)'],['gl','Goal line (inside 5)']];
 const whenLabel=w=>(WHENS.find(x=>x[0]===w)||WHENS[0])[1];
 let PLAN={team:'',t:0,calls:[]}, editId=null;
-function loadPlan(){ PLAN={team:DATA.team,t:0,calls:[]}; try{ const s=localStorage.getItem('dpp-plan:'+DATA.team); if(s){ const p=JSON.parse(s); PLAN={team:DATA.team,t:p.t||0,calls:p.calls||[]}; } }catch(_){} pullPlan(); }
-// Cloud backup: one copy per opponent, newest wins. Works quietly; offline just skips it.
+/* ---------- game plan sync ----------
+   Every call is its own record online (rooms/plan2_<team>/c/<id>), so two coaches can edit at once
+   without wiping each other out. Deletes leave a marker so they stick on every device.
+   Changes made with no signal wait in a queue and go out when the signal comes back. */
 const slug=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'team';
-const planUrl=team=>DB.replace(/\/$/,'')+'/rooms/plan_'+slug(team)+'.json';
-let planCloud='';  // '', 'ok', 'off'
-function pushPlan(){ if(!DB) return; const body={team:PLAN.team,t:PLAN.t,calls:PLAN.calls};
-  fetch(planUrl(PLAN.team),{method:'PUT',body:JSON.stringify(body)}).then(r=>{planCloud=r.ok?'ok':'off';planNote();}).catch(()=>{planCloud='off';planNote();}); }
-function pullPlan(){ if(!DB) return; const team=DATA.team;
-  fetch(planUrl(team)).then(r=>r.json()).then(c=>{
+const DBR=()=>DB.replace(/\/$/,'');
+const planUrl=team=>DBR()+'/rooms/plan_'+slug(team)+'.json';           // old single-copy backup (read once to carry over)
+const plan2Url=(team,id)=>DBR()+'/rooms/plan2_'+slug(team)+'/c'+(id?'/'+id:'')+'.json';
+let planCloud='', PSYNC={}, PPEND={}, planES=null, planLiveTeam=null, planFlushing=false;
+const lsGet=k=>{ try{ const v=localStorage.getItem(k); return v==null?null:JSON.parse(v); }catch(_){ return null; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(_){} };
+const rid=()=>Math.random().toString(36).slice(2,9);
+function normCall(c){ const o={}; Object.keys(c||{}).sort().forEach(k=>{ if(k==='t'||k==='del') return; let v=c[k]; if(v==null) return; if(k==='vs') v=Array.isArray(v)?v:Object.values(v); o[k]=v; }); if(!o.vs) o.vs=[]; return o; }
+function persistPlan(){ const t=DATA.team; lsSet('dpp-plan:'+t,{team:t,t:PLAN.t||0,calls:PLAN.calls}); lsSet('dpp-psync:'+t,PSYNC); lsSet('dpp-ppend:'+t,PPEND); }
+const planPending=()=>Object.keys(PPEND).length;
+function planSig(){ let h=0; PLAN.calls.map(c=>JSON.stringify(normCall(c))).sort().join('|').split('').forEach(ch=>h=(h*31+ch.charCodeAt(0))|0); return PLAN.calls.length+':'+(h>>>0).toString(36); }
+function loadPlan(){
+  const team=DATA.team, p=lsGet('dpp-plan:'+team);
+  PLAN={team,t:(p&&p.t)||0,calls:(p&&(Array.isArray(p.calls)?p.calls:Object.values(p.calls||{})).filter(Boolean))||[]};
+  PLAN.calls.forEach(c=>{ if(!c.id) c.id=rid(); });
+  loadPlan.fresh=true;
+  const ps=lsGet('dpp-psync:'+team), first=ps==null; PSYNC=ps||{}; PPEND=lsGet('dpp-ppend:'+team)||{};
+  if(!DB) return;
+  fetch(plan2Url(team)).then(r=>{ if(!r.ok) throw 0; return r.json(); }).then(async c=>{
     if(team!==DATA.team) return;
     planCloud='ok';
-    const calls=c?(Array.isArray(c.calls)?c.calls:Object.values(c.calls||{})).filter(Boolean):[];
-    if(c && (c.t||0)>(PLAN.t||0)){ const had=PLAN.calls.length; PLAN={team,t:c.t,calls}; savePlan(false); renderPlanList(); update(); if(calls.length&&!had) toast('Restored '+calls.length+' game plan call'+(calls.length===1?'':'s')+' for '+team+' from the backup.'); }
-    else if((PLAN.t||0)>((c&&c.t)||0)) pushPlan();
-    planNote();
-  }).catch(()=>{ planCloud='off'; planNote(); }); }
-function planNote(){ const el=$('planCloud'); if(!el) return;
-  el.textContent=!DB?'':planCloud==='ok'?'✓ Backed up online. Any device can restore it.':planCloud==='off'?'Not backed up right now (no signal). It will back up when you are online.':''; }
-function savePlan(bump=true){ if(bump) PLAN.t=Date.now(); PLAN.team=DATA.team; try{ localStorage.setItem('dpp-plan:'+DATA.team,JSON.stringify(PLAN)); }catch(_){} if(bump) pushPlan(); }
+    if(first&&!c){   // nothing in the new store yet: carry over the newest old-style plan, then send every call
+      let leg=null; try{ leg=await fetch(planUrl(team)).then(r=>r.json()); }catch(_){}
+      if(team!==DATA.team) return;
+      const lc=leg?(Array.isArray(leg.calls)?leg.calls:Object.values(leg.calls||{})).filter(Boolean):[];
+      if(leg&&(leg.t||0)>(PLAN.t||0)&&lc.length){ const had=PLAN.calls.length; PLAN.calls=lc.map(x=>({...normCall(x),id:x.id||rid()})); if(!had) toast('Restored '+lc.length+' game plan call'+(lc.length===1?'':'s')+' for '+team+' from the backup.'); }
+      PLAN.calls.forEach(x=>PPEND[x.id]=normCall(x));
+      persistPlan(); renderPlanList(); update(); flushPlan();
+    } else mergePlan(c);
+    startPlanLive(team);
+  }).catch(()=>{ planCloud='off'; planNote(); startPlanLive(team); });
+}
+function mergePlan(c){
+  const cloud={}; if(c&&typeof c==='object') for(const id in c){ const r=c[id]; if(r&&typeof r==='object') cloud[id]=r; }
+  const had=PLAN.calls.length; let changed=false;
+  const byId=new Map(PLAN.calls.map(x=>[x.id,x]));
+  for(const id in cloud){
+    if(id in PPEND) continue;                       // our unsent change wins; it goes out next
+    const r=cloud[id];
+    if(r.del){ if(byId.has(id)){ PLAN.calls=PLAN.calls.filter(x=>x.id!==id); byId.delete(id); changed=true; } delete PSYNC[id]; continue; }
+    const call={...normCall(r),id}, js=JSON.stringify(normCall(call)); PSYNC[id]=js;
+    const cur=byId.get(id);
+    if(!cur){ PLAN.calls.push(call); byId.set(id,call); changed=true; }
+    else if(JSON.stringify(normCall(cur))!==js){ Object.keys(cur).forEach(k=>delete cur[k]); Object.assign(cur,call); changed=true; }
+  }
+  PLAN.calls.forEach(x=>{ if(!(x.id in cloud)&&!(x.id in PPEND)) PPEND[x.id]=normCall(x); });   // never made it online: send it
+  persistPlan();
+  if(changed||loadPlan.fresh){ loadPlan.fresh=false; if(typeof room!=='undefined'&&room) beat(); }
+  if(changed){ renderPlanList(); update(); if(!had&&PLAN.calls.length) toast('Got '+PLAN.calls.length+' game plan call'+(PLAN.calls.length===1?'':'s')+' for '+DATA.team+'.'); }
+  planNote(); flushPlan();
+}
+function startPlanLive(team){
+  if(!DB||typeof EventSource==='undefined') return;
+  if(planES&&planLiveTeam===team&&planES.readyState!==2) return;
+  if(planES) planES.close();
+  planLiveTeam=team; planES=new EventSource(plan2Url(team));
+  let t=null; const refetch=()=>{ clearTimeout(t); t=setTimeout(()=>fetch(plan2Url(team)).then(r=>r.json()).then(c=>{ if(team===DATA.team){ planCloud='ok'; mergePlan(c); } }).catch(()=>{}),150); };
+  planES.addEventListener('put',refetch); planES.addEventListener('patch',refetch);
+  planES.onopen=()=>{ planCloud='ok'; flushPlan(); planNote(); };
+  planES.onerror=()=>{ if(navigator.onLine===false){ planCloud='off'; planNote(); } };
+}
+async function flushPlan(){
+  if(!DB||planFlushing||!planPending()) return planNote();
+  planFlushing=true; const team=DATA.team;
+  try{
+    for(const id of Object.keys(PPEND)){
+      if(team!==DATA.team) break;
+      const v=PPEND[id], body=v?{...v,t:{'.sv':'timestamp'}}:{del:true,t:{'.sv':'timestamp'}};
+      const r=await fetch(plan2Url(team,id)+'?print=silent',{method:'PUT',body:JSON.stringify(body)});
+      if(!r.ok) throw 0;
+      if(PPEND[id]===v){ delete PPEND[id]; if(v) PSYNC[id]=JSON.stringify(v); else delete PSYNC[id]; }
+    }
+    planCloud='ok';
+  }catch(_){ planCloud='off'; }
+  planFlushing=false; if(team===DATA.team) persistPlan(); planNote(); if(typeof beat==='function') beat();
+}
+function planNote(){ const el=$('planCloud'); if(!el) return; const n=planPending();
+  el.textContent=!DB?'':n?`${n} change${n===1?'':'s'} waiting to send. ${planCloud==='off'?'They go out as soon as there is signal.':'Sending…'}`:planCloud==='ok'?'✓ Saved online. Every device gets changes live.':planCloud==='off'?'Offline right now. Changes will send when there is signal.':''; }
+function savePlan(){
+  PLAN.t=Date.now(); PLAN.team=DATA.team;
+  PLAN.calls.forEach(x=>{ if(!x.id) x.id=rid(); const n=normCall(x), js=JSON.stringify(n); if(PSYNC[x.id]!==js) PPEND[x.id]=n; else if(PPEND[x.id]) delete PPEND[x.id]; });
+  const ids=new Set(PLAN.calls.map(x=>x.id));
+  Object.keys(PSYNC).forEach(id=>{ if(!ids.has(id)) PPEND[id]=null; });
+  Object.keys(PPEND).forEach(id=>{ if(PPEND[id]&&!ids.has(id)) delete PPEND[id]; });
+  persistPlan(); planNote(); flushPlan();
+}
+setTimeout(()=>{ if(DB){ addEventListener('online',()=>{ flushPlan(); if(planES&&planES.readyState===2) startPlanLive(DATA.team); }); setInterval(()=>{ if(planPending()) flushPlan(); if(!planES||planES.readyState===2) startPlanLive(DATA.team); },15000); } },0);   // runs after DB is set up
 function whenMatches(w){
   const third=S.dn>=3;
   switch(w){
@@ -1685,7 +1773,7 @@ const fbKey=k=>String(k).replace(/[.$#\[\]\/%]/g,c=>'%'+c.charCodeAt(0).toString
 const fbUnkey=k=>String(k).replace(/%([0-9A-F]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));
 const encObj=o=>o&&typeof o==='object'?Object.fromEntries(Object.entries(o).map(([k,v])=>[fbKey(k),v])):o;
 const decObj=o=>o&&typeof o==='object'?Object.fromEntries(Object.entries(o).map(([k,v])=>[fbUnkey(k),v])):o;
-function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,tells:encObj(S.tells||{}),tcfg:{on:TELLS.on,cols:TELLS.cols,team:DATA.team},team:DATA.team||'',fp:dataPrint(),by:dev,id:ME,t:Date.now(),plan:PLAN}; }
+function snap(){ return {dn:S.dn,dist:S.dist,ytg:S.ytg,hash:S.hash,form:S.form||null,fam:S.fam||null,pers:S.pers||null,tells:encObj(S.tells||{}),tcfg:{on:TELLS.on,cols:TELLS.cols,team:DATA.team},team:DATA.team||'',fp:dataPrint(),by:dev,id:ME,t:Date.now(),rs:RS||null}; }
 function send(){
   if(!room) return;
   const body=snap();
@@ -1695,7 +1783,6 @@ function send(){
 }
 function publish(){ if(!room||!ready||applying) return; clearTimeout(pubT); pubT=setTimeout(send,250); }
 function apply(d){
-  if(d.plan && d.plan.team===DATA.team && (d.plan.t||0)>(PLAN.t||0)){ PLAN={team:d.plan.team,t:d.plan.t,calls:Array.isArray(d.plan.calls)?d.plan.calls:Object.values(d.plan.calls||{})}; savePlan(false); renderPlanList(); }
   applying=true;
   Object.assign(S,{dn:d.dn??S.dn,dist:d.dist??S.dist,ytg:d.ytg??S.ytg,hash:d.hash||S.hash,form:d.form||null,fam:d.fam||null,pers:d.pers||null,tells:d.tells&&typeof d.tells==='object'?Object.fromEntries(Object.entries(decObj(d.tells)).filter(([,v])=>v)):{}});
   if(d.tcfg&&d.tcfg.team===DATA.team){ TELLS.on=d.tcfg.on!==false; TELLS.cols=Array.isArray(d.tcfg.cols)?d.tcfg.cols:Object.values(d.tcfg.cols||{}); TELLS.seen=true; saveTells(); }
@@ -1707,6 +1794,7 @@ function handle(d){
   last=d;
   if(d.id!==ME) apply(d);
   if(d.id!==ME && d.fp && d.fp!==dataPrint()) pullData(d.by);
+  if(d.rs){ if(lastRs!==null&&d.rs!==lastRs&&d.id!==ME){ retryFilm(); flushPlan(); pullData(d.by); loadPlan(); checkFilmBackup(); } lastRs=d.rs; } else if(lastRs===null) lastRs=0;
   syncUI();
 }
 function connect(){
@@ -1721,31 +1809,138 @@ function connect(){
   syncUI();
 }
 const dataUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_D.json';
+/* ---------- film sync ----------
+   Every copy online carries the time the database saved it, so a device can't send an older
+   file over a newer one. A fresh upload (or a fix on this device) is always the newest copy.
+   Each opponent's newest film is also backed up on its own (rooms/film_<team>), room or not. */
 let pulling=false, pulledFp='';
-function shareData(quiet){
-  if(!DB||!room) return Promise.resolve(false);
-  const body={team:DATA.team,rows:DATA.rows.map(r=>r.x?{...r,x:encObj(r.x)}:r),fp:dataPrint(),by:dev,t:Date.now(),sample:DATA===SAMPLE};
-  return fetch(dataUrl(),{method:'PUT',body:JSON.stringify(body)}).then(r=>{ if(!r.ok) throw 0; if(!quiet) toast('Sent '+DATA.team+' ('+DATA.rows.length+' plays) to everyone in room '+room+'.'); send(); return true; })
-    .catch(()=>{ if(!quiet) toast(navigator.onLine===false?'Could not send the file: no signal. Try again when you have a connection.':'Could not send the file to the room. Try again; if it keeps failing, tell Claude.'); return false; });
+const filmUrl=team=>DBR()+'/rooms/film_'+slug(team)+'.json';
+const filmIdxUrl=team=>DBR()+'/rooms/filmidx'+(team?'/'+slug(team):'')+'.json';
+const encRows=()=>DATA.rows.map(r=>r.x?{...r,x:encObj(r.x)}:r);
+const decRows=d=>(Array.isArray(d.rows)?d.rows:Object.values(d.rows||{})).filter(Boolean).map(r=>r.x?{...r,x:decObj(r.x)}:r);
+function saveData(){ try{ DATA===SAMPLE?localStorage.removeItem('dpp-data'):localStorage.setItem('dpp-data',JSON.stringify(DATA)); }catch(_){} }
+function setVer(v){ if(DATA!==SAMPLE){ DATA.ver=v; saveData(); } }
+function markNewFilm(){ setVer({by:dev,pend:true}); }
+const verT=()=>(DATA.ver&&DATA.ver.t)||0, verPend=()=>!!(DATA.ver&&DATA.ver.pend);
+const whenStr=t=>t?new Date(t).toLocaleString([],{weekday:'short',month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'}):'unknown time';
+async function metaOf(url){ const f=k=>fetch(url.replace(/\.json$/,'/'+k+'.json')).then(r=>{ if(!r.ok) throw 0; return r.json(); });
+  const [fp,t,team,by,sample]=await Promise.all(['fp','t','team','by','sample'].map(f)); return fp==null&&team==null?null:{fp,t:typeof t==='number'?t:0,team,by,sample}; }
+async function backupFilm(){
+  if(!DB||DATA===SAMPLE||!DATA.team) return false;
+  const team=DATA.team, fp=dataPrint(), by=(DATA.ver&&DATA.ver.by)||dev;
+  try{
+    const idx=await fetch(filmIdxUrl(team)).then(r=>{ if(!r.ok) throw 0; return r.json(); });
+    if(idx&&idx.fp===fp&&!verPend()){ if(!verT()) setVer({by:idx.by||by,t:idx.t||0}); else if((idx.t||0)<verT()){ const sv=JSON.stringify({'.sv':'timestamp'}); await fetch(filmUrl(team).replace(/\.json$/,'/t.json'),{method:'PUT',body:sv}); await fetch(filmIdxUrl(team).replace(/\.json$/,'/t.json'),{method:'PUT',body:sv}); } return true; }
+    if(idx&&(idx.t||0)>verT()&&!verPend()) return false;           // the backup is newer than this copy
+    const r=await fetch(filmUrl(team)+'?print=silent',{method:'PUT',body:JSON.stringify({team,rows:encRows(),fp,by,t:{'.sv':'timestamp'}})}); if(!r.ok) throw 0;
+    const t=(await metaOf(filmUrl(team)))?.t||0;
+    await fetch(filmIdxUrl(team)+'?print=silent',{method:'PUT',body:JSON.stringify({team,plays:DATA.rows.length,fp,by,t})});
+    if(team===DATA.team&&dataPrint()===fp) setVer({by,t:Math.max(t,verT())});
+    return true;
+  }catch(_){ return false; }
 }
-function pullData(from){
+async function shareData(quiet,force){
+  if(!DB||!room) return false;
+  const fp=dataPrint();
+  try{
+    if(!force&&DATA!==SAMPLE){
+      const cur=await metaOf(dataUrl());
+      if(cur&&cur.fp===fp&&!verPend()){ if(!verT()) setVer({by:cur.by||dev,t:cur.t}); else if(cur.t<verT()) await fetch(dataUrl().replace(/\.json$/,'/t.json'),{method:'PUT',body:JSON.stringify({'.sv':'timestamp'})}); if(!quiet) toast('Everyone in room '+room+' already has this '+DATA.team+' file.'); send(); return true; }
+      if(cur&&cur.team===DATA.team&&!cur.sample&&cur.t>verT()&&!verPend()){
+        if(quiet){ pullData(null,true); return false; }
+        if(confirm(`The room already has a newer ${cur.team} file (uploaded ${whenStr(cur.t)} by ${cur.by||'another device'}).\n\nUse that one on this device instead?`)) pullData(null,true);
+        else toast('Kept the newer file in the room. To replace it, load the Hudl file again.');
+        return false;
+      }
+    }
+    const by=(DATA.ver&&DATA.ver.by)||dev;
+    const r=await fetch(dataUrl()+'?print=silent',{method:'PUT',body:JSON.stringify({team:DATA.team,rows:encRows(),fp,by,t:{'.sv':'timestamp'},sample:DATA===SAMPLE})});
+    if(!r.ok) throw 0;
+    if(DATA!==SAMPLE){ const t=(await metaOf(dataUrl()))?.t||0; if(dataPrint()===fp) setVer({...(DATA.ver||{}),by,t:Math.max(t,verT())}); }
+    if(!quiet) toast('Sent '+DATA.team+' ('+DATA.rows.length+' plays) to everyone in room '+room+'.');
+    send(); beat(); return true;
+  }catch(_){
+    if(!quiet) toast(navigator.onLine===false?'Could not send the file: no signal. It will send when signal comes back.':'Could not send the file to the room. It will keep trying; if it keeps failing, tell Claude.');
+    return false;
+  }
+}
+function pullData(from,force){
   if(!DB||!room||pulling) return;
   pulling=true;
   fetch(dataUrl()).then(r=>r.json()).then(d=>{
     if(!d||!d.rows) return;
-    const rows=(Array.isArray(d.rows)?d.rows:Object.values(d.rows)).filter(Boolean).map(r=>r.x?{...r,x:decObj(r.x)}:r);
-    if(d.fp===dataPrint()||d.fp===pulledFp) return;
+    if(d.fp===dataPrint()){ if(!verT()&&d.t) setVer({by:d.by,t:d.t}); return; }
+    if(!force){
+      if(verPend()){ setTimeout(()=>shareData(true),0); return; }                                   // this device's fresh upload hasn't gone out yet
+      if(d.team===DATA.team&&verT()&&(d.t||0)<=verT()){ setTimeout(()=>shareData(true),0); return; }  // ours is newer: put it back in the room
+    }
     pulledFp=d.fp;
-    DATA=d.sample?SAMPLE:{team:d.team,rows};
-    try{ d.sample?localStorage.removeItem('dpp-data'):localStorage.setItem('dpp-data',JSON.stringify(DATA)); }catch(_){}
+    DATA=d.sample?SAMPLE:{team:d.team,rows:decRows(d),ver:{by:d.by,t:d.t||0}};
+    saveData();
     applying=true; init(); applying=false; beat();
     if(last) apply(last);
     toast('Got the '+DATA.team+' file ('+DATA.rows.length+' plays) from the '+(d.by||from||'room')+'.');
   }).catch(()=>{}).finally(()=>{ pulling=false; });
 }
+async function loadFilmBackup(team,auto){
+  try{
+    const d=await fetch(filmUrl(team)).then(r=>r.json());
+    if(!d||!d.rows){ if(!auto) toast('Could not find saved film for '+team+'.'); return false; }
+    DATA={team:d.team,rows:decRows(d),ver:{by:d.by,t:d.t||0}}; saveData();
+    applying=true; init(); applying=false; beat();
+    if(room) shareData(true);
+    toast((auto?'Updated to the newest ':'Loaded ')+d.team+' film ('+DATA.rows.length+' plays, uploaded '+whenStr(d.t)+' by '+(d.by||'a coach')+').');
+    return true;
+  }catch(_){ if(!auto) toast('Could not load the saved film. Check your signal and try again.'); return false; }
+}
+// On open and when signal returns: if someone uploaded newer film for this opponent, switch to it.
+async function checkFilmBackup(){
+  if(!DB||DATA===SAMPLE||verPend()) return;
+  const team=DATA.team;
+  try{ const idx=await fetch(filmIdxUrl(team)).then(r=>{ if(!r.ok) throw 0; return r.json(); }); if(team!==DATA.team) return;
+    if(!idx) return backupFilm();
+    if(idx.fp===dataPrint()){ if(!verT()) setVer({by:idx.by,t:idx.t}); return; }
+    if((idx.t||0)>verT()) await loadFilmBackup(team,true); else backupFilm();
+  }catch(_){}
+}
+async function retryFilm(){ if(!verPend()) return; await backupFilm(); if(room) await shareData(true); }
+async function openFilmLib(){
+  $('filmLib').hidden=false; $('filmLib').scrollIntoView({block:'nearest'});
+  const host=$('filmList'); host.innerHTML='<p class="note">Loading…</p>';
+  if(!DB){ host.innerHTML='<p class="note">Online backup isn\'t set up on this copy of the app.</p>'; return; }
+  try{
+    const all=await fetch(filmIdxUrl()).then(r=>{ if(!r.ok) throw 0; return r.json(); });
+    const list=Object.values(all||{}).filter(x=>x&&x.team).sort((a,b)=>(b.t||0)-(a.t||0));
+    if(!list.length){ host.innerHTML='<p class="note">No film saved online yet. Load a Hudl export and it backs up automatically.</p>'; return; }
+    host.innerHTML=list.map((x,i)=>{ const on=x.team===DATA.team&&x.fp===dataPrint();
+      return `<div class="rc ${on?'ok':''}"><span class="rc-i" aria-hidden="true">${on?'✓':'▸'}</span><div class="rc-t"><b>${esc(x.team)}</b><span>${x.plays||'?'} plays · uploaded ${esc(whenStr(x.t))} by ${esc(x.by||'a coach')}${on?' · on this device now':''}</span></div>${on?'':`<button class="btn" type="button" data-film="${i}">Load</button>`}</div>`; }).join('');
+    host.querySelectorAll('[data-film]').forEach(b=>b.onclick=async()=>{ b.disabled=true; if(await loadFilmBackup(list[+b.dataset.film].team,false)) openFilmLib(); else b.disabled=false; });
+  }catch(_){ host.innerHTML='<p class="note">Could not reach the online backup. Check your signal and try again.</p>'; }
+}
 const presUrl=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_P.json';
 const presMe=()=>DB.replace(/\/$/,'')+'/rooms/'+room+'_P/'+ME+'.json';
-function beat(){ if(!DB||!room) return Promise.resolve(); return fetch(presMe(),{method:'PUT',body:JSON.stringify({dev,team:DATA.team||'',plays:DATA.rows.length,fp:dataPrint(),t:Date.now()})}).catch(()=>{}); }
+function beat(){ if(!DB||!room) return Promise.resolve(); return fetch(presMe(),{method:'PUT',body:JSON.stringify({dev,team:DATA.team||'',plays:DATA.rows.length,fp:dataPrint(),ps:planSig(),pc:PLAN.calls.length,pp:planPending()+(verPend()?1:0),t:Date.now()})}).catch(()=>{}); }
+// "Is everyone the same?" board in Staff sync
+let RS=0, lastRs=null, boardT=0;
+function syncEveryone(){ RS=Date.now(); send(); retryFilm(); flushPlan(); pullData(); loadPlan(); toast('Asked every device to get the newest film and game plan.'); setTimeout(()=>renderBoard(true),2500); }
+async function renderBoard(now){
+  const host=$('syncBoard'); if(!host||!room||!DB||$('syncPanel').hidden) return;
+  if(!now&&Date.now()-boardT<4500) return; boardT=Date.now();
+  try{
+    await beat();
+    const [pres,roomFilm]=await Promise.all([fetch(presUrl()).then(r=>r.json()),metaOf(dataUrl()).catch(()=>null)]);
+    const peers=Object.entries(pres||{}).map(([id,v])=>({id,...v})).filter(p=>p&&Date.now()-(p.t||0)<120000).sort((a,b)=>(b.id===ME)-(a.id===ME));
+    const fpOK=roomFilm?roomFilm.fp:dataPrint(), sig=planSig();
+    host.innerHTML=peers.map(p=>{ const me=p.id===ME, fOK=p.fp===fpOK, pOK=p.ps===sig, wait=p.pp>0, good=fOK&&pOK&&!wait;
+      const bits=[fOK?`✓ Film: ${esc(p.team||'')} · ${p.plays} plays`:`✕ Film: ${esc(p.team||'none')} · ${p.plays||0} plays — not the room's film`, pOK?`✓ Plan: ${p.pc||0} calls`:`✕ Plan: ${p.pc||0} calls (this device has ${PLAN.calls.length})`];
+      if(wait) bits.push(`! ${p.pp} change${p.pp===1?'':'s'} waiting to send`);
+      return `<div class="rc ${good?'ok':wait&&fOK&&pOK?'warn':'bad'}"><span class="rc-i" aria-hidden="true">${good?'✓':wait&&fOK&&pOK?'!':'✕'}</span><div class="rc-t"><b>${esc(p.dev||'Device')}${me?' (this device)':''}</b><span>${bits.join(' · ')} · checked in ${ago(p.t)}</span></div>${me&&!good?'<button class="btn" type="button" data-fixme>Get latest</button>':''}</div>`; }).join('')||'<p class="note">No devices have checked in yet.</p>';
+    const fx=host.querySelector('[data-fixme]'); if(fx) fx.onclick=()=>{ retryFilm(); flushPlan(); pullData(null,false); loadPlan(); setTimeout(()=>renderBoard(true),2000); };
+    const allGood=peers.length&&peers.every(p=>p.fp===fpOK&&p.ps===sig&&!(p.pp>0));
+    $('boardSum').textContent=allGood?`All ${peers.length} device${peers.length===1?'':'s'} match.`:'Not everyone matches yet.';
+    $('boardSum').className='note '+(allGood?'ok-txt':'warn-txt');
+  }catch(_){ host.innerHTML='<p class="note">Could not check the other devices right now.</p>'; }
+}
 function setRoom(code){
   if(!code && room && DB) fetch(presMe(),{method:'DELETE'}).catch(()=>{});
   room=code; try{ code?localStorage.setItem('dpp-room',code):localStorage.removeItem('dpp-room'); }catch(_){}
@@ -1779,7 +1974,7 @@ function syncUI(){
 }
 if(DB){
   $('syncBtn').hidden=false;
-  const toggle=on=>{ $('syncPanel').hidden=!on; if(on){ syncUI(); $('syncPanel').scrollIntoView({block:'nearest'}); } };
+  const toggle=on=>{ $('syncPanel').hidden=!on; if(on){ syncUI(); renderBoard(true); $('syncPanel').scrollIntoView({block:'nearest'}); } };
   $('syncBtn').onclick=()=>toggle($('syncPanel').hidden);
   $('syncPill').onclick=()=>toggle(true);
   $('syncClose').onclick=()=>toggle(false);
@@ -1787,10 +1982,13 @@ if(DB){
   $('joinRoom').onclick=()=>{ const c=$('joinCode').value.trim().toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(c)) return toast('Enter the 4-character room code.'); $('joinCode').value=''; setRoom(c); toast('Joined room '+c+'.'); };
   $('joinCode').addEventListener('keydown',e=>{ if(e.key==='Enter') $('joinRoom').click(); });
   $('shareFile').onclick=()=>shareData(false);
+  $('syncAll').onclick=syncEveryone;
   $('leaveRoom').onclick=()=>{ setRoom(null); toast('Left the room. This device works on its own now.'); };
   addEventListener('online',()=>{ if(room && (!es||es.readyState===2)) connect(); else syncUI(); });
   addEventListener('offline',syncUI);
-  setInterval(()=>{ if(room) syncUI(); },5000);
+  setInterval(()=>{ if(room){ if(es&&es.readyState===2&&navigator.onLine!==false) connect(); syncUI(); renderBoard(); } },5000);
+  setInterval(retryFilm,15000);
+  addEventListener('online',()=>{ retryFilm(); checkFilmBackup(); });
   setInterval(()=>{ if(room) beat(); },30000);
   connect();
 }
@@ -1839,10 +2037,11 @@ $('file').onchange=async e=>{
       const x={}; Object.keys(r).forEach(k=>{ if(TELL_SKIP.test(k.trim())||MAP[k]) return; let v=String(r[k]??'').trim(); if(v==='-'||(!v&&/MOTION|SHIFT/i.test(k))) v='NONE'; if(v&&v.length<=24) x[k.trim().toUpperCase()]=v.toUpperCase(); }); if(Object.keys(x).length) o.x=x;
       return o;}).filter(o=>o.dn>=1&&o.dn<=4&&o.type&&o.play&&(o.type==='Run'||o.type==='Pass'));
     if(rows.length<10) throw new Error('Found only '+rows.length+' usable offensive plays. The file needs DN, DIST, YARD LN, PLAY TYPE (Run/Pass) and OFF PLAY columns.');
-    DATA={team:team||f.name.replace(/\.[^.]+$/,''),rows};
-    try{localStorage.setItem('dpp-data',JSON.stringify(DATA));}catch(_){}
+    DATA={team:team||f.name.replace(/\.[^.]+$/,''),rows,ver:{by:dev,pend:true}};
+    saveData();
     init(); beat(); { const ty=findTypos(); if(ty.length) setTimeout(()=>{ openTypos(); toast(`Found ${ty.length} possible typo${ty.length===1?'':'s'} in the play and formation names.`); },600); }
-    if(room&&DB){ shareData(true).then(ok=>toast('Loaded '+rows.length+' plays for '+DATA.team+(ok?' and sent it to everyone in room '+room+'.':'.'))); } else toast('Loaded '+rows.length+' plays for '+DATA.team);
+    (async()=>{ const saved=DB?await backupFilm():false; const sent=room&&DB?await shareData(true):false;
+      toast('Loaded '+rows.length+' plays for '+DATA.team+(sent?' and sent it to everyone in room '+room:'')+(saved?(sent?', and saved it online.':' and saved it online.'):(DB?'. It will save online when there is signal.':'.'))); })();
   }catch(err){toast(err.message||'Could not read that file.');}
   e.target.value='';
 };
@@ -1858,6 +2057,7 @@ function init(){
   drawField(); update();
 }
 init();
+if(DB) setTimeout(checkFilmBackup,1200);
 try{ if(localStorage.getItem('dpp-side')) openSide(true); }catch(_){}
 </script>
 
