@@ -470,6 +470,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <button class="btn" id="planBtn">Game plan</button>
       <button class="btn btn-ink" id="pbBtn">Press box mode</button>
       <button class="btn btn-red" id="sideBtn">Sideline mode</button>
+      <button class="btn" id="syncBtn" hidden>Staff sync</button>
       <div class="menu">
         <button class="btn mbtn" type="button" aria-haspopup="true" aria-expanded="false">Film ▾</button>
         <div class="mlist" hidden>
@@ -489,7 +490,6 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="menu">
         <button class="btn mbtn" type="button" aria-haspopup="true" aria-expanded="false">More ▾</button>
         <div class="mlist mright" hidden>
-          <button class="mi" id="syncBtn" hidden>Staff sync</button>
           <button class="mi" id="clearSit">Clear situation</button>
           <button class="mi thm" type="button" data-theme-btn aria-label="Switch light or dark">◐ <span>Dark</span></button>
           <a class="mi" href="offense.html" id="toOff">Offense side →</a>
@@ -1000,7 +1000,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 29, 8:11 AM';
+const APP_VERSION='Oct 29, 8:15 AM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
