@@ -1188,7 +1188,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 2:48 PM';
+const APP_VERSION='Oct 30, 2:54 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1860,11 +1860,18 @@ function renderPlanList(){
   host.innerHTML='<div class="plan-group">'+sorted.map(c=>{ const h=PLAN.calls.length>=4?head(c):null; const hh=h&&h!==lastH?`<div class="pg-h">${esc(h)}</div>`:''; lastH=h; return hh+`<div class="plan-row${hits.has(c.id)?' hit':''}">
     <div class="pr-t">${esc(targetLabel(c.target))}<small>${vsOf(c).length?'vs '+esc(vsOf(c).map(v=>v.startsWith('cf:')?v.slice(3)+' (concept)':v).join(', '))+' · ':''}${c.fb&&c.fb!=='any'?fbWord(c.fb)+' · ':''}${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
     <div class="pr-c">${c.stunt?`<b>Stunt:</b> ${esc(c.stunt)}`:''}${c.stunt&&c.cov?' · ':''}${c.cov?`<b>Cov:</b> ${esc(c.cov)}`:''}${c.note?`<br><span class="note">${esc(c.note)}</span>`:''}</div>
-    <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`; }).join('')+'</div>';
+    <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-copy="${c.id}">Copy</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`; }).join('')+'</div>';
   host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     const c=PLAN.calls.find(x=>x.id===b.dataset.edit); if(!c) return;
     editId=c.id; pfSel=tgToSel(c.target); pvSel=new Set(vsOf(c)); pvLabel(); pfFb=c.fb||'any'; fbSegUI(); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
     $('pfSave').textContent='Save changes'; $('pfCancel').hidden=false; $('pfStunt').focus();
+  });
+  host.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{
+    const c=PLAN.calls.find(x=>x.id===b.dataset.copy); if(!c) return;
+    editId=null; pfSel=tgToSel(c.target); pvSel=new Set(vsOf(c)); pvLabel(); pfFb=c.fb||'any'; fbSegUI(); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
+    pfLabel(); $('pfSave').textContent='Add as new call'; $('pfCancel').hidden=false;
+    $('planForm').scrollIntoView({block:'start',behavior:'smooth'}); setTimeout(()=>{ $('pfStunt').focus(); $('pfStunt').select(); },300);
+    toast('Copied. Change what you need, then tap Add as new call. The original stays.');
   });
   host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     const i=PLAN.calls.findIndex(x=>x.id===b.dataset.del); if(i<0) return;
