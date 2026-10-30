@@ -445,6 +445,11 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rp-page .fl.F{color:#1d7a43;box-shadow:inset 0 0 0 1px #1d7a43} .rp-page .fl.B{color:#9a6400;box-shadow:inset 0 0 0 1px #9a6400}
 .rp-page .fb.E{color:#6b6164;border:1px solid #c9c1c2}
 .rp-page .ddf .fb{font-weight:700} .rp-page .ddr .fn .fb{margin-left:4px} .rp-page .ddr.ddfo{padding:3px 6px 4px;gap:3px} .rp-page .ddr.ddfo i{font-size:10px;padding:1px 5px}
+.rp-page .csb .ddh b{font-size:13px}
+.rp-page .csr{padding:3px 7px;border-top:1px solid #f0ecec} .rp-page .csr.any{background:#fbfafa}
+.rp-page .csc{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px} .rp-page .csc b{font:800 15px/1.1 "Arial Narrow",Arial,sans-serif;text-transform:uppercase} .rp-page .csc em{font:700 12.5px "Arial Narrow",Arial,sans-serif;font-style:normal;color:#c8102e;text-transform:uppercase}
+.rp-page .csm{font-size:9.5px;color:#6b6164;line-height:1.3} .rp-page .csm i{color:#151112}
+.rp-page .cse{padding:4px 7px 10px;color:#c9c1c2} .rp-page .csb.csx .ddh{background:#8a8083}
 .rp-page .stx table{min-width:0} .rp-page .stx td{text-align:left;height:auto;padding:3px 5px} .rp-page .stx th{text-align:left;padding:3px 5px}
 .rp-page .stx{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rp-page .stx h3{font-size:10.5px;letter-spacing:.1em;margin:8px 0 3px;color:#fff;background:#151112;padding:3px 7px} .rp-page .stx h3:first-child{margin-top:0}
@@ -581,6 +586,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
           <button class="mi" type="button" id="reportBtn">Concept report</button>
           <button class="mi" type="button" id="stuntBtn">Stunt report</button>
           <button class="mi" type="button" id="ddBtn">Down &amp; distance breakdown</button>
+          <button class="mi" type="button" id="csBtn">Call sheet</button>
           <button class="mi" id="readyBtn">Ready check</button>
         </div>
       </div>
@@ -1182,7 +1188,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 1:59 PM';
+const APP_VERSION='Oct 30, 2:15 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1438,6 +1444,46 @@ function openDD(){ $('rpTitle').textContent='Down & distance'; $('reportView').s
   requestAnimationFrame(()=>document.querySelectorAll('.ddwrap').forEach(w=>{ const h=w.scrollHeight, ww=w.scrollWidth; const z=Math.max(0.5,Math.min(1,740/h,990/ww)); w.style.setProperty('--ddz',z.toFixed(3)); })); $('rpPage2').hidden=false; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
   $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints front and back: every formation, then families only.':'Print it from your Vercel site.'; }
 $('ddBtn').onclick=openDD;
+/* ---------- call sheet: every game plan call, printable ---------- */
+function csReport(byForm){
+  const calls=PLAN.calls.filter(c=>c.stunt||c.cov);
+  const team=esc((DATA.team||'Opponent').toUpperCase());
+  const head=(t,sub)=>`<div class="top"><h1>${team} <span>·</span> CALL SHEET${t?' · '+t:''}</h1><div class="sub">${sub}</div></div>`;
+  if(!calls.length) return `<div class="ddwrap">${head('','')}<p class="nocf">No game plan calls yet. Open <b>Game plan</b>, add your stunts and coverages, then come back here.</p></div>`;
+  const kind=c=>{ const b=parseT(c.target).base; return b==='any'?0:b.startsWith('fam:')?1:2; };
+  const line=(c,show)=>{ const bits=[];
+    if(show==='form') bits.push(esc(targetLabel(c.target))); else bits.push(esc(whenLabel(c.when)));
+    if(c.fb&&c.fb!=='any') bits.push(esc(fbWord(c.fb)));
+    if(vsOf(c).length) bits.push('vs '+esc(vsOf(c).map(v=>v.startsWith('cf:')?v.slice(3).toLowerCase()+' concept':v).join(', ')));
+    return `<div class="csr${kind(c)===0&&show==='form'?' any':''}"><div class="csc"><b>${esc(c.stunt||'—')}</b>${c.cov?`<em>${esc(c.cov)}</em>`:''}</div><div class="csm">${bits.join(' · ')}${c.note?` · <i>${esc(c.note)}</i>`:''}</div></div>`; };
+  let boxes=[];
+  if(!byForm){
+    const groups=[['1st down',['d1']],['2nd & 7+',['l2']],['2nd & 3-6',['d2m']],['2nd & 1-2',['d2s']],['3rd & 12+',['d3x']],['3rd & 7-11',['d3l']],['3rd & 3-6',['d3m']],['3rd & 1-2',['d3s']],
+      ['4th & 1-2',['d4s']],['4th & 3-6',['d4m']],['4th & 7+',['d4l']],['Red zone',['rz']],['Goal line',['gl']],['Any down',['any']]];
+    OLD_WHENS.forEach(([k,l])=>{ if(calls.some(c=>c.when===k)) groups.push([l,[k]]); });
+    boxes=groups.map(([l,ks])=>{ const g=calls.filter(c=>ks.includes(c.when)).sort((a,b)=>kind(a)-kind(b)||targetLabel(a.target).localeCompare(targetLabel(b.target)));
+      return `<div class="ddb csb${g.length?'':' csx'}"><div class="ddh"><b>${esc(l)}</b><span>${g.length?g.length+' call'+(g.length===1?'':'s'):''}</span></div>${g.length?g.map(c=>line(c,'form')).join(''):'<div class="cse">—</div>'}</div>`; });
+  } else {
+    const wIdx=w=>{ const i=WHENS.findIndex(x=>x[0]===w); return i<0?50:i===0?99:i; };
+    const tg={}; calls.forEach(c=>{ const k=parseT(c.target).base==='any'?'any':c.target; (tg[k]||(tg[k]=[])).push(c); });
+    const keys=Object.keys(tg);   // Any formation first, then each family right before its own formations
+    const famKey=k=>{ const b=parseT(k).base; return k==='any'?'':b.startsWith('fam:')?b.slice(4):(famOfForm(b.slice(5))||'~'); };
+    keys.sort((a,b)=>(a==='any'?-1:b==='any'?1:famKey(a).localeCompare(famKey(b))||(parseT(a).base.startsWith('fam:')?-1:parseT(b).base.startsWith('fam:')?1:targetLabel(a).localeCompare(targetLabel(b)))));
+    boxes=keys.map(k=>{ const g=tg[k].sort((a,b)=>wIdx(a.when)-wIdx(b.when));
+      return `<div class="ddb csb"><div class="ddh"><b>${esc(k==='any'?'Any formation':targetLabel(k))}</b><span>${g.length} call${g.length===1?'':'s'}</span></div>${g.map(c=>line(c,'when')).join('')}</div>`; });
+  }
+  const ht=b=>2+(b.match(/class="csr/g)||[]).length*1.6;
+  const tot=boxes.reduce((a,b)=>a+ht(b),0), cols=[[],[],[],[]]; let ci=0,acc=0;
+  boxes.forEach(b=>{ const h=ht(b); if(ci<3&&acc>0&&acc+h/2>tot/4*(ci+1)) ci++; cols[ci].push(b); acc+=h; });
+  const n=calls.length;
+  const sub=`${n} call${n===1?'':'s'} from the game plan · grouped by ${byForm?'formation':'down &amp; distance'}<br>Big = stunt · red = coverage · ${byForm?'down &amp; distance':'formation'} under each call`;
+  return `<div class="ddwrap">${head(byForm?'BY FORMATION':'',sub)}<div class="ddg">${cols.map(c=>`<div class="ddc">${c.join('')}</div>`).join('')}</div></div>`;
+}
+function openCS(){ $('rpTitle').textContent='Call sheet'; $('reportView').setAttribute('aria-label','Call sheet'); $('rpPage').innerHTML=csReport(false); const two=PLAN.calls.length>0; $('rpPage2').innerHTML=two?csReport(true):''; $('rpPage2').hidden=!two; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
+  requestAnimationFrame(()=>document.querySelectorAll('.ddwrap').forEach(w=>{ const h=w.scrollHeight, ww=w.scrollWidth; const z=Math.max(0.5,Math.min(1,740/h,990/ww)); w.style.setProperty('--ddz',z.toFixed(3)); }));
+  $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?(two?'Prints front and back: by down & distance, then by formation.':'Prints on one landscape page.'):'Print it from your Vercel site.'; }
+$('csBtn').onclick=openCS;
+
 
 
 $('rpClose').onclick=()=>{ $('reportView').hidden=true; document.documentElement.classList.remove('rp-open'); };
