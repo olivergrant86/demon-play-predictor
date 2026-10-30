@@ -229,6 +229,11 @@ td.m{font-family:var(--mono);font-size:12px}
 .pf-act{display:flex;gap:8px}
 @media (max-width:760px){.plan-form{grid-template-columns:1fr 1fr}.pf-wide{grid-column:1/-1}.pf-act{grid-column:1/-1}}
 .plan-group{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.plan-tools{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0 4px}
+.pt-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px} .pt-row .lbl{margin:0}
+.pt-row select{font:600 14px var(--body);padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);max-width:260px}
+#ptSort{display:inline-flex;flex-direction:row;border:1px solid var(--line);border-radius:8px;overflow:hidden} #ptSort button{font:700 12px var(--display);letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border:0;background:transparent;color:var(--ink);cursor:pointer} #ptSort button.on{background:var(--red);color:#fff}
+.pg-h{font:800 13px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin:8px 0 0;padding-bottom:2px;border-bottom:1px solid var(--line)} .pg-h:first-child{margin-top:0}
 .plan-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,2fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .plan-row.hit{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
 .plan-row .pr-t{font:800 16px var(--display);text-transform:uppercase}
@@ -647,6 +652,12 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <div class="pf-act"><button class="btn btn-red" type="submit" id="pfSave">Add call</button><button class="btn" type="button" id="pfCancel" hidden>Cancel edit</button></div>
     </form>
     <p class="note" id="planCloud"></p>
+    <div class="plan-tools" id="planTools" hidden>
+      <div class="pt-row"><span class="lbl">Down</span><div class="chips" id="ptDown"></div></div>
+      <div class="pt-row"><span class="lbl">Formation</span><select id="ptForm" aria-label="Show calls for formation"></select>
+        <span class="lbl">Sort by</span><div id="ptSort"><button type="button" data-s="down">Down &amp; distance</button><button type="button" data-s="form">Formation</button></div>
+        <span class="note" id="ptCount"></span><button class="linkbtn" type="button" id="ptClear" hidden>Show all</button></div>
+    </div>
     <div id="planList"></div>
   </section>
   <section class="panel syncp" id="syncPanel" hidden aria-label="Staff sync">
@@ -1171,7 +1182,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 10:13 AM';
+const APP_VERSION='Oct 30, 1:59 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1761,17 +1772,46 @@ function resetPlanForm(){
   $('pfWhen').value='any'; $('pfStunt').value=''; $('pfCov').value=''; $('pfNote').value='';
   fillPlanForm(); pfOpen(false);
 }
+let PTF={down:'all',form:'all',sort:'down'}; try{ Object.assign(PTF,JSON.parse(localStorage.getItem('dpp-ptf')||'{}')); }catch(_){}
+function savePTF(){ try{ localStorage.setItem('dpp-ptf',JSON.stringify(PTF)); }catch(_){} }
 function renderPlanList(){
   $('planTeam').textContent=DATA.team; planNote();
   const host=$('planList');
   if(!PLAN.calls.length){ host.innerHTML='<p class="empty">No calls yet. Pick a formation above, type your stunt and coverage, and tap Add call.</p>'; return; }
-  const hits=new Set(matchingCalls().slice(0,1).map(c=>c.id));
+  const hits=new Set(menuOf().menu.map(c=>c.id));
+  // ----- filter + sort bar
+  $('planTools').hidden=PLAN.calls.length<4;
+  const famOfTarget=tg=>{ const b=parseT(tg).base; return b.startsWith('fam:')?b.slice(4):b.startsWith('form:')?(famOfForm(b.slice(5))||null):null; };
+  const downs=[['all','All'],['1','1st'],['2','2nd'],['3','3rd'],['4','4th'],['rz','Red zone / GL'],['any','Any down']];
+  chipRow($('ptDown'),downs.map(([v,t])=>({v,t})),v=>PTF.down===v,v=>{ PTF.down=v; savePTF(); renderPlanList(); });
+  const fams=[...new Set(PLAN.calls.map(c=>famOfTarget(c.target)).filter(Boolean))].sort();
+  const forms=[...new Set(PLAN.calls.map(c=>parseT(c.target).base).filter(b=>b.startsWith('form:')))].sort();
+  const opts=[['all','All formations'],['any','Any formation calls']].concat(fams.flatMap(f=>[['fam:'+f,f+' family (all)']].concat(forms.filter(x=>famOfForm(x.slice(5))===f).map(x=>[x,'   '+x.slice(5)])))).concat(forms.filter(x=>!famOfForm(x.slice(5))).map(x=>[x,x.slice(5)]));
+  if(!opts.some(o=>o[0]===PTF.form)) PTF.form='all';
+  const html=opts.map(([v,l])=>`<option value="${esc(v)}">${esc(l).replace(/^ +/,'&nbsp;&nbsp;&nbsp;')}</option>`).join('');
+  if($('ptForm').dataset.h!==html){ $('ptForm').innerHTML=html; $('ptForm').dataset.h=html; }
+  $('ptForm').value=PTF.form;
+  document.querySelectorAll('#ptSort button').forEach(x=>x.classList.toggle('on',x.dataset.s===PTF.sort));
+  const dnOf=w=>w==='any'?['any']:w==='rz'||w==='gl'?['rz']:w==='early'?['1','2']:w==='short'||w==='med'||w==='long'?['3','4']:[w==='d1'?'1':w==='l2'||/2$/.test(w)||w.startsWith('d2')?'2':w.startsWith('d3')?'3':w.startsWith('d4')?'4':'any'];
+  const okDown=c=>PTF.down==='all'||dnOf(c.when).includes(PTF.down);
+  const okForm=c=>{ const b=parseT(c.target).base; if(PTF.form==='all') return true; if(PTF.form==='any') return b==='any';
+    if(PTF.form.startsWith('fam:')) return famOfTarget(c.target)===PTF.form.slice(4); return b===PTF.form; };
+  const shown=PLAN.calls.filter(c=>okDown(c)&&okForm(c));
+  const filtered=shown.length!==PLAN.calls.length;
+  $('ptCount').textContent=filtered?`Showing ${shown.length} of ${PLAN.calls.length} calls`:`${PLAN.calls.length} calls`;
+  $('ptClear').hidden=!filtered;
+  const wIdx=w=>{ const i=WHENS.findIndex(x=>x[0]===w); return i<0?50+OLD_WHENS.findIndex(x=>x[0]===w):i===0?99:i; };   // "Any down" last
   const order=c=>(c.target==='any'?2:c.target.startsWith('fam:')?1:0);
-  const sorted=[...PLAN.calls].sort((a,b)=>targetLabel(a.target).localeCompare(targetLabel(b.target))||order(a)-order(b));
-  host.innerHTML='<div class="plan-group">'+sorted.map(c=>`<div class="plan-row${hits.has(c.id)?' hit':''}">
+  const byForm=(a,b)=>targetLabel(a.target).localeCompare(targetLabel(b.target))||order(a)-order(b);
+  const sorted=[...shown].sort(PTF.sort==='form'?((a,b)=>byForm(a,b)||wIdx(a.when)-wIdx(b.when)):((a,b)=>wIdx(a.when)-wIdx(b.when)||byForm(a,b)));
+  const DN={'1':'1st down','2':'2nd down','3':'3rd down','4':'4th down',rz:'Red zone / goal line',any:'Any down'};
+  const head=c=>PTF.sort==='form'?targetLabel(c.target):DN[dnOf(c.when)[0]]+(c.when==='early'?' & 2nd':c.when==='short'||c.when==='med'||c.when==='long'?' & 4th (old)':'');
+  if(!sorted.length){ host.innerHTML='<p class="empty">No calls match these filters. <button class="linkbtn" type="button" onclick="PTF.down=\'all\';PTF.form=\'all\';savePTF();renderPlanList()">Show all</button></p>'; return; }
+  let lastH=null;
+  host.innerHTML='<div class="plan-group">'+sorted.map(c=>{ const h=PLAN.calls.length>=4?head(c):null; const hh=h&&h!==lastH?`<div class="pg-h">${esc(h)}</div>`:''; lastH=h; return hh+`<div class="plan-row${hits.has(c.id)?' hit':''}">
     <div class="pr-t">${esc(targetLabel(c.target))}<small>${vsOf(c).length?'vs '+esc(vsOf(c).map(v=>v.startsWith('cf:')?v.slice(3)+' (concept)':v).join(', '))+' · ':''}${c.fb&&c.fb!=='any'?fbWord(c.fb)+' · ':''}${esc(whenLabel(c.when))}${hits.has(c.id)?' · showing now':''}</small></div>
     <div class="pr-c">${c.stunt?`<b>Stunt:</b> ${esc(c.stunt)}`:''}${c.stunt&&c.cov?' · ':''}${c.cov?`<b>Cov:</b> ${esc(c.cov)}`:''}${c.note?`<br><span class="note">${esc(c.note)}</span>`:''}</div>
-    <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`).join('')+'</div>';
+    <div class="pr-a"><button class="btn" type="button" data-edit="${c.id}">Edit</button><button class="btn" type="button" data-del="${c.id}">Delete</button></div></div>`; }).join('')+'</div>';
   host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
     const c=PLAN.calls.find(x=>x.id===b.dataset.edit); if(!c) return;
     editId=c.id; pfSel=tgToSel(c.target); pvSel=new Set(vsOf(c)); pvLabel(); pfFb=c.fb||'any'; fbSegUI(); fillPlanForm(); $('pfWhen').value=c.when; $('pfStunt').value=c.stunt||''; $('pfCov').value=c.cov||''; $('pfNote').value=c.note||'';
@@ -1798,6 +1838,9 @@ $('planForm').addEventListener('submit',e=>{
   savePlan(); resetPlanForm(); renderPlanList(); update();
 });
 $('pfCancel').onclick=resetPlanForm;
+$('ptForm').onchange=e=>{ PTF.form=e.target.value; savePTF(); renderPlanList(); };
+document.querySelectorAll('#ptSort button').forEach(b=>b.onclick=()=>{ PTF.sort=b.dataset.s; savePTF(); renderPlanList(); });
+$('ptClear').onclick=()=>{ PTF.down='all'; PTF.form='all'; savePTF(); renderPlanList(); };
 $('planBtn').onclick=()=>{ const p=$('planPanel'); p.hidden=!p.hidden; if(!p.hidden){ fillPlanForm(); resetPlanForm(); renderPlanList(); p.scrollIntoView({block:'nearest'}); } };
 $('planClose').onclick=()=>{ $('planPanel').hidden=true; };
 
