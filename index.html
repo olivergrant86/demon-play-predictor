@@ -902,7 +902,8 @@ function weight(r){
   let w=1;
   if(TELLS.on) for(const c in S.tells){ const v=S.tells[c]; if(!v||!TELLS.cols.includes(c)) continue; const rv=r.x&&r.x[c]; w*= rv===v?1:(rv?0.02:0.12); }
   w*= r.dn===S.dn?1:(Math.abs(r.dn-S.dn)===1?0.3:0.08);
-  w*= Math.exp(-Math.abs(r.dist-S.dist)/(S.dist<=3?2:4));
+  const sd=Math.min(S.dist,S.ytg), rd=Math.min(r.dist,r._y||r.dist);
+  w*= Math.exp(-Math.abs(rd-sd)/(sd<=3?2:4));
   const sGL=S.dist>=S.ytg, rGL=r.dist>=r._y; if(sGL!==rGL) w*=0.6;
   w*= Math.exp(-Math.abs(r._y-S.ytg)/22);
   const zone=y=>y<=20?0:y<=40?1:y<=80?2:3; if(zone(r._y)===zone(S.ytg)) w*=1.25;
@@ -1097,7 +1098,7 @@ function predict(){
   const fbAll=(()=>{ let f=0,b=0,n=0; sc.forEach(({r,w})=>{ const v=String(r.fb||'').toUpperCase()[0]; if(v==='F'){f+=w;n++;} else if(v==='B'){b+=w;n++;} }); if(!n) return null; const pf=f/(f+b); return pf>=.5?{s:'Field',p:pf,n}:{s:'Bdry',p:1-pf,n}; })();
   const dir=blendAgg(r=>r.dir);
   const gain=sc.reduce((s,x)=>s+x.w*(x.r.gain||0),0)/W;
-  const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(r.dist-S.dist)<=2);
+  const exact=pool.filter(r=>r.dn===S.dn&&Math.abs(Math.min(r.dist,r._y||r.dist)-Math.min(S.dist,S.ytg))<=2);
   return {sc,eff,type,plays,allPlays,bySide,fbOf,fbAll,cfOf,fbOfCf,dir,gain,exact,pool:pool.length};
 }
 function confOf(eff){return eff>=14?['High','#2f8f4e']:eff>=6?['Medium','#d99a00']:['Low','var(--red)'];}
@@ -1170,7 +1171,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 9:56 AM';
+const APP_VERSION='Oct 30, 10:13 AM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1587,26 +1588,27 @@ function savePlan(){
 }
 setTimeout(()=>{ if(DB){ addEventListener('online',()=>{ flushPlan(); if(planES&&planES.readyState===2) startPlanLive(DATA.team); }); setInterval(()=>{ if(planPending()) flushPlan(); if(!planES||planES.readyState===2) startPlanLive(DATA.team); },15000); } },0);   // runs after DB is set up
 function whenMatches(w){
+  const dd=Math.min(S.dist,S.ytg);   // goal to go: 3rd & goal from the 3 is 3rd & 3
   const third=S.dn>=3;
   switch(w){
     case 'any': return true;
     case 'early': return S.dn<=2;
     case 'd1': return S.dn===1;
-    case 's2': return S.dn===2&&S.dist<=3;
-    case 'm2': return S.dn===2&&S.dist>=4&&S.dist<=6;
-    case 'l2': return S.dn===2&&S.dist>=7;
-    case 'short': return third&&S.dist<=3;
-    case 'med': return third&&S.dist>=4&&S.dist<=6;
-    case 'long': return third&&S.dist>=7;
-    case 'd2s': return S.dn===2&&S.dist<=2;
-    case 'd2m': return S.dn===2&&S.dist>=3&&S.dist<=6;
-    case 'd3s': return S.dn===3&&S.dist<=2;
-    case 'd3m': return S.dn===3&&S.dist>=3&&S.dist<=6;
-    case 'd3l': return S.dn===3&&S.dist>=7&&S.dist<=11;
-    case 'd3x': return S.dn===3&&S.dist>=12;
-    case 'd4s': return S.dn===4&&S.dist<=2;
-    case 'd4m': return S.dn===4&&S.dist>=3&&S.dist<=6;
-    case 'd4l': return S.dn===4&&S.dist>=7;
+    case 's2': return S.dn===2&&dd<=3;
+    case 'm2': return S.dn===2&&dd>=4&&dd<=6;
+    case 'l2': return S.dn===2&&dd>=7;
+    case 'short': return third&&dd<=3;
+    case 'med': return third&&dd>=4&&dd<=6;
+    case 'long': return third&&dd>=7;
+    case 'd2s': return S.dn===2&&dd<=2;
+    case 'd2m': return S.dn===2&&dd>=3&&dd<=6;
+    case 'd3s': return S.dn===3&&dd<=2;
+    case 'd3m': return S.dn===3&&dd>=3&&dd<=6;
+    case 'd3l': return S.dn===3&&dd>=7&&dd<=11;
+    case 'd3x': return S.dn===3&&dd>=12;
+    case 'd4s': return S.dn===4&&dd<=2;
+    case 'd4m': return S.dn===4&&dd>=3&&dd<=6;
+    case 'd4l': return S.dn===4&&dd>=7;
     case 'rz': return S.ytg<=20;
     case 'gl': return S.ytg<=5;
   } return false;
