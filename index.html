@@ -1188,7 +1188,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 2:54 PM';
+const APP_VERSION='Oct 30, 2:59 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1465,8 +1465,8 @@ function csReport(byForm){
       return `<div class="ddb csb${g.length?'':' csx'}"><div class="ddh"><b>${esc(l)}</b><span>${g.length?g.length+' call'+(g.length===1?'':'s'):''}</span></div>${g.length?g.map(c=>line(c,'form')).join(''):'<div class="cse">—</div>'}</div>`; });
   } else {
     const wIdx=w=>{ const i=WHENS.findIndex(x=>x[0]===w); return i<0?50:i===0?99:i; };
-    const tg={}; calls.forEach(c=>{ const k=parseT(c.target).base==='any'?'any':c.target; (tg[k]||(tg[k]=[])).push(c); });
-    const keys=Object.keys(tg);   // Any formation first, then each family right before its own formations
+    const tg={}; calls.filter(c=>parseT(c.target).base!=='any').forEach(c=>{ (tg[c.target]||(tg[c.target]=[])).push(c); });   // Any formation calls stay on the front only
+    const keys=Object.keys(tg);   // each family right before its own formations
     const famKey=k=>{ const b=parseT(k).base; return k==='any'?'':b.startsWith('fam:')?b.slice(4):(famOfForm(b.slice(5))||'~'); };
     keys.sort((a,b)=>(a==='any'?-1:b==='any'?1:famKey(a).localeCompare(famKey(b))||(parseT(a).base.startsWith('fam:')?-1:parseT(b).base.startsWith('fam:')?1:targetLabel(a).localeCompare(targetLabel(b)))));
     boxes=keys.map(k=>{ const g=tg[k].sort((a,b)=>wIdx(a.when)-wIdx(b.when));
@@ -1475,11 +1475,11 @@ function csReport(byForm){
   const ht=b=>2+(b.match(/class="csr/g)||[]).length*1.6;
   const tot=boxes.reduce((a,b)=>a+ht(b),0), cols=[[],[],[],[]]; let ci=0,acc=0;
   boxes.forEach(b=>{ const h=ht(b); if(ci<3&&acc>0&&acc+h/2>tot/4*(ci+1)) ci++; cols[ci].push(b); acc+=h; });
-  const n=calls.length;
-  const sub=`${n} call${n===1?'':'s'} from the game plan · grouped by ${byForm?'formation':'down &amp; distance'}<br>Big = stunt · red = coverage · ${byForm?'down &amp; distance':'formation'} under each call`;
+  const n=byForm?calls.filter(c=>parseT(c.target).base!=='any').length:calls.length;
+  const sub=`${n} ${byForm?'formation ':''}call${n===1?'':'s'}${byForm?' · Any formation calls are on the front':' from the game plan · grouped by down &amp; distance'}<br>Big = stunt · red = coverage · ${byForm?'down &amp; distance':'formation'} under each call`;
   return `<div class="ddwrap">${head(byForm?'BY FORMATION':'',sub)}<div class="ddg">${cols.map(c=>`<div class="ddc">${c.join('')}</div>`).join('')}</div></div>`;
 }
-function openCS(){ $('rpTitle').textContent='Call sheet'; $('reportView').setAttribute('aria-label','Call sheet'); $('rpPage').innerHTML=csReport(false); const two=PLAN.calls.length>0; $('rpPage2').innerHTML=two?csReport(true):''; $('rpPage2').hidden=!two; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
+function openCS(){ $('rpTitle').textContent='Call sheet'; $('reportView').setAttribute('aria-label','Call sheet'); $('rpPage').innerHTML=csReport(false); const two=PLAN.calls.some(c=>(c.stunt||c.cov)&&parseT(c.target).base!=='any'); $('rpPage2').innerHTML=two?csReport(true):''; $('rpPage2').hidden=!two; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
   requestAnimationFrame(()=>document.querySelectorAll('.ddwrap').forEach(w=>{ const h=w.scrollHeight, ww=w.scrollWidth; const z=Math.max(0.5,Math.min(1,740/h,990/ww)); w.style.setProperty('--ddz',z.toFixed(3)); }));
   $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?(two?'Prints front and back: by down & distance, then by formation.':'Prints on one landscape page.'):'Print it from your Vercel site.'; }
 $('csBtn').onclick=openCS;
