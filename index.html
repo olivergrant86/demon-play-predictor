@@ -1188,7 +1188,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 2:15 PM';
+const APP_VERSION='Oct 30, 2:48 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1690,6 +1690,9 @@ function vsHit(c){
       if(!(x.v>=0.08||side)) return;
       fb=LASTP.fbOf?LASTP.fbOf(name):null;
     }
+    // only when they lean that way: a vs-run stunt needs a run read (50%+), a vs-pass call a pass read,
+    // unless that one play is so likely (30%+ of all snaps) it's worth calling anyway
+    const lean=(LASTP.type&&LASTP.type[x.t])||0; if(lean<0.5&&x.v<0.30) return;
     if(c.fb&&c.fb!=='any'&&(!fb||fb.s!==c.fb)) return;   // only when that play leans to the side you picked
     if(!best||x.v>best.v) best={p:x.concept?x.p+' (concept)':name,v:x.v,t:x.t,fb};
   });
