@@ -51,6 +51,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 @media (max-width:900px){.grid{grid-template-columns:1fr}}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px;min-width:0}
 .lbl{font:700 12px var(--display);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 6px}
+.fhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px} .fhead .lbl{margin:0} .flipbtn{padding:4px 10px;font-size:12px} .flipbtn.on{background:var(--red);border-color:var(--red);color:#fff}
 .field-wrap{border-radius:8px;overflow:hidden;cursor:crosshair;touch-action:manipulation}
 .field-wrap svg{display:block;width:100%;height:auto}
 .spotline{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
@@ -692,7 +693,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <div class="grid">
     <section class="panel" aria-label="Situation">
       <div class="pb-hide">
-        <p class="lbl">Ball spot &amp; hash — tap the field</p>
+        <div class="fhead"><p class="lbl">Ball spot &amp; hash — tap the field</p><button class="btn flipbtn" type="button" data-flip aria-pressed="false">⇄ Flip field</button></div>
         <div class="field-wrap" id="fieldWrap"><svg id="field" viewBox="0 0 1200 533" role="img" aria-label="Football field. Tap to place the ball."></svg></div>
       </div>
       <div class="spotline">
@@ -777,7 +778,7 @@ function prep(){ DATA.rows.forEach(r=>{r._y=ytgOf(r.yl); r.form=r.form||'(none)'
 
 /* ---------- field ---------- */
 const NS='http://www.w3.org/2000/svg';
-let FG=null, VERT=false;
+let FG=null, VERT=false, FLIP=false; try{ FLIP=localStorage.getItem('dpp-flip')==='1'; }catch(_){}
 function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||FG||field).appendChild(e);return e;}
 const field=$('field');
 const X=y=>100+(100-y)*10; // yards-to-goal -> x
@@ -787,19 +788,21 @@ function drawField(){
   // Vertical field (press box, wide screens): same drawing, turned so the offense drives up the screen.
   field.setAttribute('viewBox',VERT?'0 0 533 1200':'0 0 1200 533');
   field.setAttribute('aria-label',VERT?'Football field, offense driving up. Tap to place the ball.':'Football field. Tap to place the ball.');
-  FG=el('g',{transform:VERT?'translate(0 1200) rotate(-90)':''},field);
+  // Flip field: turn the whole drawing around so the offense drives the other way (taps and hashes turn with it).
+  FG=el('g',{transform:(VERT?'translate(0 1200) rotate(-90) ':'')+(FLIP?'rotate(180 600 266.5)':'')},field);
+  const UP=FLIP?180:0;   // keeps end zone names and the arrow reading right side up after a flip
   const TR=VERT?90:0;
   for(let i=0;i<10;i++) el('rect',{x:100+i*100,y:0,width:100,height:533,fill:i%2?'var(--turf2)':'var(--turf)'});
   el('rect',{x:0,y:0,width:100,height:533,fill:'#1a1415'});
   el('rect',{x:1100,y:0,width:100,height:533,fill:'var(--red)'});
-  const t1=el('text',{x:50,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${VERT?90:-90} 50 266)`,'letter-spacing':6});t1.textContent=(DATA.team||'OFFENSE').toUpperCase().slice(0,14);
-  const t2=el('text',{x:1150,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(90 1150 266)`,'letter-spacing':6});t2.textContent='DEMONS';
+  const t1=el('text',{x:50,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${(VERT?90:-90)+UP} 50 266)`,'letter-spacing':6});t1.textContent=(DATA.team||'OFFENSE').toUpperCase().slice(0,14);
+  const t2=el('text',{x:1150,y:266,fill:'#fff','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':800,'font-size':44,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${90+UP} 1150 266)`,'letter-spacing':6});t2.textContent='DEMONS';
   for(let yd=0;yd<=100;yd+=5){const x=100+yd*10; el('line',{x1:x,y1:0,x2:x,y2:533,stroke:'var(--chalk)','stroke-width':yd%50===0?4:2});}
   for(let yd=1;yd<100;yd++){ if(yd%5===0) continue; const x=100+yd*10;
     [[0,12],[521,533],[170,186],[347,363]].forEach(([a,b])=>el('line',{x1:x,y1:a,x2:x,y2:b,stroke:'var(--chalk)','stroke-width':2}));}
   for(let yd=10;yd<=90;yd+=10){const n=yd<=50?yd:100-yd; const x=100+yd*10;
-    [[60,0],[473,180]].forEach(([y,r])=>{const t=el('text',{x,y,fill:'rgba(255,255,255,.75)','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':700,'font-size':40,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${VERT?90:r} ${x} ${y})`});t.textContent=n;});}
-  if(!VERT) el('text',{x:600,y:520,fill:'rgba(255,255,255,.55)','font-family':'Barlow, sans-serif','font-size':16,'text-anchor':'middle'}).textContent='OFFENSE DRIVING THIS WAY  →';
+    [[60,0],[473,180]].forEach(([y,r])=>{const t=el('text',{x,y,fill:'rgba(255,255,255,.75)','font-family':'Saira Condensed, Arial Narrow, sans-serif','font-weight':700,'font-size':40,'text-anchor':'middle','dominant-baseline':'middle',transform:`rotate(${VERT?90+UP:r} ${x} ${y})`});t.textContent=n;});}
+  if(!VERT){ const dt=el('text',{x:600,y:520,fill:'rgba(255,255,255,.55)','font-family':'Barlow, sans-serif','font-size':16,'text-anchor':'middle',transform:FLIP?'rotate(180 600 266.5)':''}); dt.textContent=FLIP?'←  OFFENSE DRIVING THIS WAY':'OFFENSE DRIVING THIS WAY  →'; }
   el('line',{id:'fd',x1:0,y1:0,x2:0,y2:533,stroke:'#f5c400','stroke-width':5,opacity:.9});
   el('line',{id:'los',x1:0,y1:0,x2:0,y2:533,stroke:'#5ab0ff','stroke-width':5,opacity:.9});
   el('ellipse',{id:'ball',cx:0,cy:0,rx:20,ry:12,fill:'#7a3b1d',stroke:'#fff','stroke-width':3});
@@ -1188,7 +1191,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 2:59 PM';
+const APP_VERSION='Oct 30, 8:10 PM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -1509,13 +1512,17 @@ function layoutField(){
   if(want!==VERT){
     VERT=want;
     if(VERT){ const a=document.createElement('aside'); a.className='panel pbfield'; a.id='pbField';
-      a.innerHTML='<p class="lbl">Tap the field · offense drives up</p>'; a.appendChild($('fieldWrap'));
+      a.innerHTML='<div class="fhead"><p class="lbl" id="pbFieldLbl">Tap the field</p><button class="btn flipbtn" type="button" data-flip>⇄ Flip</button></div>'; a.appendChild($('fieldWrap')); a.querySelector('[data-flip]').onclick=flipField; flipUI();
       document.querySelector('.grid').prepend(a); }
     else { fieldHome.appendChild($('fieldWrap')); const a=$('pbField'); if(a) a.remove(); }
     drawField(); drawSpot();
   }
 }
 addEventListener('resize',layoutField);
+function flipUI(){ document.querySelectorAll('[data-flip]').forEach(b=>{ b.setAttribute('aria-pressed',FLIP?'true':'false'); b.classList.toggle('on',FLIP); });
+  const l=$('pbFieldLbl'); if(l) l.textContent='Tap the field · offense drives '+(FLIP?'down':'up'); }
+function flipField(){ FLIP=!FLIP; try{ localStorage.setItem('dpp-flip',FLIP?'1':'0'); }catch(_){} drawField(); drawSpot(); flipUI(); toast(FLIP?'Field flipped: offense now drives the other way.':'Field back to normal.'); }
+document.querySelectorAll('[data-flip]').forEach(b=>b.onclick=flipField); flipUI();
 function pressBox(on){
   document.documentElement.classList.toggle('pb',on);
   layoutField();
