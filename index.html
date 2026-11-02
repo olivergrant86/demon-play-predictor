@@ -156,7 +156,7 @@ td.m{font-family:var(--mono);font-size:12px}
 .sync-act input{font:800 20px var(--display);letter-spacing:.2em;text-transform:uppercase;width:110px;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 .sync-on{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
 .sync-info{flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px}
-.code{font:800 52px/1 var(--display);letter-spacing:.14em;color:var(--red)}
+.code{font:800 52px/1 var(--display);letter-spacing:.14em;color:var(--red);overflow-wrap:anywhere} .code.long{font-size:34px;letter-spacing:.08em}
 .warn-txt{color:#b07a00;font-weight:600}
 .s-live{display:block;font:800 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:#ff2a45;margin-bottom:2px}
 .fg-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -679,8 +679,9 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
     <div id="syncOff" class="sync-act">
       <button class="btn btn-red" id="startRoom">Start a room</button>
       <span class="note">or join one:</span>
-      <input id="joinCode" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
+      <input id="joinCode" maxlength="12" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
       <button class="btn" id="joinRoom">Join</button>
+      <p class="note" style="flex-basis:100%;margin:2px 0 0">To pick your own code, type it in the box (like DEMONS or LAWTON), then tap Start a room. Leave it blank for a random code.</p>
     </div>
     <div id="syncOn" class="sync-on" hidden>
       <div><span class="lbl">Room code</span><div class="code" id="roomCode"></div></div>
@@ -1191,7 +1192,7 @@ document.querySelectorAll('[data-theme-btn]').forEach(b=>b.onclick=()=>setTheme(
 try{ const th=localStorage.getItem('dpp-theme'); if(th) document.documentElement.setAttribute('data-theme',th); }catch(_){}
 themeUI();
 
-const APP_VERSION='Oct 30, 8:10 PM';
+const APP_VERSION='Nov 2, 11:13 AM';
 /* ---------- ready check ---------- */
 function dataPrint(){ let g=0,f=0,h=0; DATA.rows.forEach(r=>{ g+=(r.gain||0)*1+(r.dn||0); if(r.fb) f++; if(r.cf) f+=1000; const s=String(r.play||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; }); return (DATA.team||'')+'|'+DATA.rows.length+'|'+g+'|fb'+f+'|'+h; }
 async function runReady(){
@@ -2105,7 +2106,7 @@ function syncUI(){
   $('pbSync').classList.toggle('off',!room);
   if(room){ pill.textContent=live&&!sendErr?(mismatch?'Room '+room+' · different team':'Live · '+room):'Sync paused · '+room; pill.classList.toggle('warn',!live||sendErr||!!mismatch); }
   $('syncOff').hidden=!!room; $('syncOn').hidden=!room;
-  $('roomCode').textContent=room||'';
+  $('roomCode').textContent=room||''; $('roomCode').classList.toggle('long',!!room&&room.length>6);
   let msg='';
   if(!room) msg='';
   else if(!live) msg='<span class="warn-txt">No connection right now. The read still works here, and it will sync again when signal comes back.</span>';
@@ -2124,8 +2125,14 @@ if(DB){
   $('syncBtn').onclick=()=>toggle($('syncPanel').hidden);
   $('syncPill').onclick=()=>toggle(true);
   $('syncClose').onclick=()=>toggle(false);
-  $('startRoom').onclick=()=>{ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; setRoom(c); toast('Room '+c+' started. Share the code with your staff.'); };
-  $('joinRoom').onclick=()=>{ const c=$('joinCode').value.trim().toUpperCase(); if(!/^[A-Z0-9]{4}$/.test(c)) return toast('Enter the 4-character room code.'); $('joinCode').value=''; setRoom(c); toast('Joined room '+c+'.'); };
+  const cleanCode=v=>String(v||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  $('startRoom').onclick=async()=>{ const typed=cleanCode($('joinCode').value);
+    if(typed){ if(typed.length<3) return toast('Room codes need at least 3 letters or numbers.');
+      let busy=false; try{ const d=await fetch(DB.replace(/\/$/,'')+'/rooms/'+typed+'.json').then(r=>r.json()); busy=!!(d&&d.t&&Date.now()-d.t<12*3600e3); }catch(_){}
+      $('joinCode').value=''; setRoom(typed);
+      toast(busy?`Room ${typed} was already in use in the last 12 hours, so you joined it.`:`Room ${typed} started. Share the code with your staff.`); return; }
+    const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; setRoom(c); toast('Room '+c+' started. Share the code with your staff.'); };
+  $('joinRoom').onclick=()=>{ const c=cleanCode($('joinCode').value); if(!/^[A-Z0-9]{3,12}$/.test(c)) return toast('Enter the room code (3 to 12 letters or numbers).'); $('joinCode').value=''; setRoom(c); toast('Joined room '+c+'.'); };
   $('joinCode').addEventListener('keydown',e=>{ if(e.key==='Enter') $('joinRoom').click(); });
   $('shareFile').onclick=()=>shareData(false);
   $('syncAll').onclick=syncEveryone;
