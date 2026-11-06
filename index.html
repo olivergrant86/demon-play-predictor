@@ -450,7 +450,7 @@ button.cfc:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rp-page .csr{padding:3px 7px;border-top:1px solid #f0ecec} .rp-page .csr.any{background:#fbfafa}
 .rp-page .csc{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px} .rp-page .csc b{font:800 15px/1.1 "Arial Narrow",Arial,sans-serif;text-transform:uppercase} .rp-page .csc em{font:700 12.5px "Arial Narrow",Arial,sans-serif;font-style:normal;color:#c8102e;text-transform:uppercase}
 .rp-page .csm{font-size:9.5px;color:#6b6164;line-height:1.3} .rp-page .csm i{color:#151112}
-.rp-page .cse{padding:4px 7px 10px;color:#c9c1c2} .rp-page .csb.csx .ddh{background:#8a8083}
+.rp-page .cse{padding:4px 7px 10px;color:#c9c1c2} .rp-page .cscont .ddh small{font-weight:600;opacity:.8;font-size:.85em} .rp-page .csb.csx .ddh{background:#8a8083}
 .rp-page .stx table{min-width:0} .rp-page .stx td{text-align:left;height:auto;padding:3px 5px} .rp-page .stx th{text-align:left;padding:3px 5px}
 .rp-page .stx{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rp-page .stx h3{font-size:10.5px;letter-spacing:.1em;margin:8px 0 3px;color:#fff;background:#151112;padding:3px 7px} .rp-page .stx h3:first-child{margin-top:0}
@@ -1448,6 +1448,37 @@ function openDD(){ $('rpTitle').textContent='Down & distance'; $('reportView').s
   requestAnimationFrame(()=>document.querySelectorAll('.ddwrap').forEach(w=>{ const h=w.scrollHeight, ww=w.scrollWidth; const z=Math.max(0.5,Math.min(1,740/h,990/ww)); w.style.setProperty('--ddz',z.toFixed(3)); })); $('rpPage2').hidden=false; $('reportView').hidden=false; document.documentElement.classList.add('rp-open');
   $('rpPrint').hidden=!PWA; $('rpNote').textContent=PWA?'Prints front and back: every formation, then families only.':'Print it from your Vercel site.'; }
 $('ddBtn').onclick=openDD;
+/* split long call sheet boxes across columns: a box with 4+ calls that won't fit
+   finishes in the next column under a "(cont.)" header; columns come out about even */
+function csColumns(boxes,N){
+  const HH=2.2, EH=1.6;
+  const RH=r=>{ const m=r.match(/<div class="csc"><b>(.*?)<\/b>(?:<em>(.*?)<\/em>)?/)||[], st=(m[1]||'').length, cv=(m[2]||'').length;
+    const big=st>22?2:1, covOwn=cv&&st+cv>24?1:0, meta=(r.match(/<div class="csm">(.*?)<\/div>/)||[,''])[1].replace(/<[^>]+>/g,'').length>48?1:0;
+    return 0.6+big*1.0+covOwn*0.75+0.6+meta*0.6; };
+  const htm=(b,rows,cont)=>`<div class="ddb csb${b.n?'':' csx'}${cont?' cscont':''}"><div class="ddh"><b>${esc(b.title)}${cont?' <small>(cont.)</small>':''}</b><span>${b.n?(cont?rows.length+' of '+b.n:b.n+' call'+(b.n===1?'':'s')):''}</span></div>${b.n?rows.join(''):'<div class="cse">—</div>'}</div>`;
+  // lay boxes out at column height H; ok=false if anything had to run past H
+  const pack=H=>{ const cols=[[]]; let used=0, ok=true;
+    const next=()=>{ cols.push([]); used=0; };
+    const put=(h,x)=>{ cols[cols.length-1].push(x); used+=h; if(used>H+0.01) ok=false; };
+    boxes.forEach(b=>{
+      if(!b.n){ const h=HH+EH; if(used>0&&used+h>H&&cols.length<N) next(); put(h,htm(b,[],false)); return; }
+      let i=0, cont=false;
+      while(i<b.rows.length){
+        const rest=b.rows.slice(i), full=HH+rest.reduce((a,r)=>a+RH(r),0);
+        if(cols.length>=N||used+full<=H){ put(full,htm(b,rest,cont)); break; }
+        let k=0,h=HH; while(k<rest.length&&h+RH(rest[k])<=H-used){ h+=RH(rest[k]); k++; }
+        if(b.rows.length>=4&&k>=2&&rest.length-k>=2){ put(h,htm(b,rest.slice(0,k),cont)); i+=k; cont=true; next(); }
+        else if(used>0) next();
+        else { put(full,htm(b,rest,cont)); break; }
+      }
+    });
+    return {cols,ok}; };
+  const tot=boxes.reduce((a,b)=>a+HH+(b.n?b.rows.reduce((x,r)=>x+RH(r),0):EH),0);
+  let lo=tot/N, hi=tot+HH*N, best=pack(hi).cols;
+  for(let t=0;t<30;t++){ const mid=(lo+hi)/2, r=pack(mid); if(r.ok){ best=r.cols; hi=mid; } else lo=mid; }
+  while(best.length<N) best.push([]);
+  return best;
+}
 /* ---------- call sheet: every game plan call, printable ---------- */
 function csReport(byForm){
   const calls=PLAN.calls.filter(c=>c.stunt||c.cov);
@@ -1466,7 +1497,7 @@ function csReport(byForm){
       ['4th & 1-2',['d4s']],['4th & 3-6',['d4m']],['4th & 7+',['d4l']],['Red zone',['rz']],['Goal line',['gl']],['Any down',['any']]];
     OLD_WHENS.forEach(([k,l])=>{ if(calls.some(c=>c.when===k)) groups.push([l,[k]]); });
     boxes=groups.map(([l,ks])=>{ const g=calls.filter(c=>ks.includes(c.when)).sort((a,b)=>kind(a)-kind(b)||targetLabel(a.target).localeCompare(targetLabel(b.target)));
-      return `<div class="ddb csb${g.length?'':' csx'}"><div class="ddh"><b>${esc(l)}</b><span>${g.length?g.length+' call'+(g.length===1?'':'s'):''}</span></div>${g.length?g.map(c=>line(c,'form')).join(''):'<div class="cse">—</div>'}</div>`; });
+      return {title:l, n:g.length, rows:g.map(c=>line(c,'form'))}; });
   } else {
     const wIdx=w=>{ const i=WHENS.findIndex(x=>x[0]===w); return i<0?50:i===0?99:i; };
     const tg={}; calls.filter(c=>parseT(c.target).base!=='any').forEach(c=>{ (tg[c.target]||(tg[c.target]=[])).push(c); });   // Any formation calls stay on the front only
@@ -1474,11 +1505,9 @@ function csReport(byForm){
     const famKey=k=>{ const b=parseT(k).base; return k==='any'?'':b.startsWith('fam:')?b.slice(4):(famOfForm(b.slice(5))||'~'); };
     keys.sort((a,b)=>(a==='any'?-1:b==='any'?1:famKey(a).localeCompare(famKey(b))||(parseT(a).base.startsWith('fam:')?-1:parseT(b).base.startsWith('fam:')?1:targetLabel(a).localeCompare(targetLabel(b)))));
     boxes=keys.map(k=>{ const g=tg[k].sort((a,b)=>wIdx(a.when)-wIdx(b.when));
-      return `<div class="ddb csb"><div class="ddh"><b>${esc(k==='any'?'Any formation':targetLabel(k))}</b><span>${g.length} call${g.length===1?'':'s'}</span></div>${g.map(c=>line(c,'when')).join('')}</div>`; });
+      return {title:k==='any'?'Any formation':targetLabel(k), n:g.length, rows:g.map(c=>line(c,'when'))}; });
   }
-  const ht=b=>2+(b.match(/class="csr/g)||[]).length*1.6;
-  const tot=boxes.reduce((a,b)=>a+ht(b),0), cols=[[],[],[],[]]; let ci=0,acc=0;
-  boxes.forEach(b=>{ const h=ht(b); if(ci<3&&acc>0&&acc+h/2>tot/4*(ci+1)) ci++; cols[ci].push(b); acc+=h; });
+  const cols=csColumns(boxes,4);
   const n=byForm?calls.filter(c=>parseT(c.target).base!=='any').length:calls.length;
   const sub=`${n} ${byForm?'formation ':''}call${n===1?'':'s'}${byForm?' · Any formation calls are on the front':' from the game plan · grouped by down &amp; distance'}<br>Big = stunt · red = coverage · ${byForm?'down &amp; distance':'formation'} under each call`;
   return `<div class="ddwrap">${head(byForm?'BY FORMATION':'',sub)}<div class="ddg">${cols.map(c=>`<div class="ddc">${c.join('')}</div>`).join('')}</div></div>`;
